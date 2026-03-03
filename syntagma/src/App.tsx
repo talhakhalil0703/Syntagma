@@ -37,6 +37,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { SettingsModal } from "./components/SettingsModal";
 import { SidebarContainer } from "./components/SidebarContainer";
 import { Editor } from "./components/Editor";
+import { MarkdownRenderer } from "./components/markdown/MarkdownRenderer";
 import { useSettingsStore } from "./store/settingsStore";
 import { registry } from "./plugins/PluginRegistry";
 import FileExplorerPlugin from "./plugins/core/explorer/FileExplorerPlugin";
@@ -46,7 +47,14 @@ import GitPlugin from "./plugins/core/git/GitPlugin";
 import DailyNotesPlugin from "./plugins/core/daily/DailyNotesPlugin";
 import TemplatesPlugin from "./plugins/core/templates/TemplatesPlugin";
 import DataviewPlugin from "./plugins/core/dataview/DataviewPlugin";
-import { DataviewPane } from "./plugins/core/dataview/DataviewPane";
+import TasksPlugin from "./plugins/core/tasks/TasksPlugin";
+import CalendarPlugin from "./plugins/core/calendar/CalendarPlugin";
+import HtmlExportPlugin from "./plugins/core/export-html/HtmlExportPlugin";
+import PdfExportPlugin from "./plugins/core/export-pdf/PdfExportPlugin";
+import BrowserPlugin from "./plugins/core/browser/BrowserPlugin";
+import ExcalidrawPlugin from "./plugins/core/excalidraw/ExcalidrawPlugin";
+import { BrowserView } from "./plugins/core/browser/BrowserView";
+import { ExcalidrawView } from "./plugins/core/excalidraw/ExcalidrawView";
 import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
 import { useDailyNotesStore } from "./plugins/core/daily/dailyNotesStore";
 import { FileSystemAPI } from "./utils/fs";
@@ -67,7 +75,9 @@ function App() {
     closeTab,
     openTab,
     initWorkspace,
-    openVault
+    openVault,
+    viewMode,
+    toggleViewMode
   } = useWorkspaceStore();
 
   const { openSettings, loadSettings } = useSettingsStore();
@@ -152,6 +162,54 @@ function App() {
       author: "Syntagma Core"
     });
 
+    registry.loadPlugin(TasksPlugin, {
+      id: "core-tasks",
+      name: "Tasks",
+      version: "1.0.0",
+      description: "Aggregate and interact with markdown checkboxes across your vault.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(CalendarPlugin, {
+      id: "core-calendar",
+      name: "Calendar",
+      version: "1.0.0",
+      description: "Visualize daily notes and timelines on a monthly grid.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(HtmlExportPlugin, {
+      id: "core-export-html",
+      name: "Export as HTML",
+      version: "1.0.0",
+      description: "Export the current Markdown document as a standalone styled HTML file.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(PdfExportPlugin, {
+      id: "core-export-pdf",
+      name: "Export as PDF",
+      version: "1.0.0",
+      description: "Export the current document as an A4 PDF styled with the active software theme.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(BrowserPlugin, {
+      id: "core-browser",
+      name: "Web Browser",
+      version: "1.0.0",
+      description: "Opens a native embedded Web Browser tab inside your workspace for quick internet research without context switching.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(ExcalidrawPlugin, {
+      id: "core-excalidraw",
+      name: "Excalidraw",
+      version: "1.0.0",
+      description: "Provides native integration for interactive vector drawing boards saved as JSON text.",
+      author: "Syntagma Core"
+    });
+
     return () => {
       registry.unloadAll();
     };
@@ -165,8 +223,8 @@ function App() {
         if (isMounted) setFileContent("");
         return;
       }
-      if (activeTabId === "welcome" || activeTabId.startsWith("tab-")) {
-        // Welcome tab or newly created empty tab
+      if (activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) {
+        // Welcome tab or newly created empty tab or browser tab
         if (isMounted) setFileContent(activeTabId === "welcome" ? "# Welcome to Syntagma\n\nYour new local-first, blazing fast markdown editor.\n\nStart typing here..." : "");
         return;
       }
@@ -187,7 +245,7 @@ function App() {
   // Debounced Save
   const handleEditorChange = (val: string) => {
     setFileContent(val);
-    if (!activeTabId || activeTabId === "welcome" || activeTabId.startsWith("tab-")) return;
+    if (!activeTabId || activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) return;
 
     setIsSaving(true);
     if ((window as any).saveTimeout) {
@@ -373,6 +431,13 @@ function App() {
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <button
                     className="icon-btn"
+                    onClick={toggleViewMode}
+                    title={viewMode === "edit" ? "Switch to Reading View" : "Switch to Editing View"}
+                  >
+                    {viewMode === "edit" ? <PenTool size={18} /> : <Bookmark size={18} />}
+                  </button>
+                  <button
+                    className="icon-btn"
                     onClick={() => setMode(isDark ? "light" : "dark")}
                     title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                   >
@@ -390,11 +455,19 @@ function App() {
                 </div>
               </header>
 
-              <div style={{ flexGrow: 1, width: "100%", overflow: "hidden" }}>
-                <Editor
-                  value={fileContent}
-                  onChange={handleEditorChange}
-                />
+              <div style={{ flexGrow: 1, width: "100%", height: "100%", overflow: "auto" }}>
+                {activeTabId?.startsWith("browser-") ? (
+                  <BrowserView />
+                ) : activeTabId?.endsWith(".excalidraw") ? (
+                  <ExcalidrawView fileContent={fileContent} onChange={handleEditorChange} />
+                ) : viewMode === "edit" ? (
+                  <Editor
+                    value={fileContent}
+                    onChange={handleEditorChange}
+                  />
+                ) : (
+                  <MarkdownRenderer content={fileContent} />
+                )}
               </div>
             </main>
 

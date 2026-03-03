@@ -11,7 +11,7 @@ const EXPLORER_MANIFEST: PluginManifest = {
 };
 
 export default class FileExplorerPlugin extends Plugin {
-    constructor(app: App, manifest: PluginManifest) {
+    constructor(app: App, _manifest: PluginManifest) {
         super(app, EXPLORER_MANIFEST);
     }
 

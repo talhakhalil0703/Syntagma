@@ -59,7 +59,8 @@ describe('workspaceStore', () => {
             leftSidebarOpen: false,
             rightSidebarOpen: true,
             openTabs: [{ id: "welcome", title: "Untitled Note.md" }],
-            activeTabId: "test-note"
+            activeTabId: "test-note",
+            viewMode: "edit"
         }, null, 2);
 
         expect(FileSystemAPI.writeFile).toHaveBeenCalledWith('/mock/vault/.syntagma/workspace.json', expectedPayload);
@@ -74,7 +75,7 @@ describe('workspaceStore', () => {
         expect(useWorkspaceStore.getState().activeTabId).toBe('new-tab');
 
         // allow microtasks to flush
-        await new Promise(process.nextTick);
+        await new Promise((r) => setTimeout(r, 0));
 
         expect(FileSystemAPI.writeFile).toHaveBeenCalled();
     });

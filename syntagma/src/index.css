@@ -1,4 +1,6 @@
 @import 'inter-ui/inter.css';
+@import "@excalidraw/excalidraw/index.css";
+@import "katex/dist/katex.min.css";
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useSettingsStore } from "../store/settingsStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { Search, File, Command as CommandIcon } from "lucide-react";
-import { FileSystemAPI, type DirEntry } from "../utils/fs";
+import { FileSystemAPI } from "../utils/fs";
 import { fuzzyMatch } from "../utils/search";
 
 export function CommandPalette() {

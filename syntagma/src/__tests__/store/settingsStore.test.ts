@@ -80,7 +80,7 @@ describe('settingsStore', () => {
         }, null, 2);
 
         // allow microtasks to flush so the saveSettings promise resolves
-        await new Promise(process.nextTick);
+        await new Promise((r) => setTimeout(r, 0));
         expect(FileSystemAPI.writeFile).toHaveBeenCalledWith('/mock/vault/.syntagma/settings.json', expectedPayload);
     });
 

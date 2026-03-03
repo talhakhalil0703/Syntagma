@@ -3,6 +3,7 @@ import { useGitStore } from "../plugins/core/git/gitStore";
 import { useDailyNotesStore } from "../plugins/core/daily/dailyNotesStore";
 import { useTemplatesStore } from "../plugins/core/templates/templatesStore";
 import { useDataviewStore } from "../plugins/core/dataview/dataviewStore";
+import { useTasksStore } from "../plugins/core/tasks/tasksStore";
 import { X } from "lucide-react";
 import { useState } from "react";
 
@@ -32,6 +33,12 @@ export function SettingsModal() {
         parseFrontmatter,
         updateSetting: updateDataviewSetting
     } = useDataviewStore();
+
+    const {
+        showCompleted,
+        groupByFile,
+        updateSetting: updateTasksSetting
+    } = useTasksStore();
 
     if (!isSettingsOpen) return null;
 
@@ -125,6 +132,16 @@ export function SettingsModal() {
                     >
                         Databases (Dataview)
                     </div>
+                    <div
+                        onClick={() => setActiveTab("tasks")}
+                        style={{
+                            padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', marginBottom: '4px',
+                            backgroundColor: activeTab === "tasks" ? 'var(--bg-tertiary)' : 'transparent',
+                            color: activeTab === "tasks" ? 'var(--text-primary)' : 'var(--text-secondary)'
+                        }}
+                    >
+                        Tasks
+                    </div>
                 </div>
             </div>
 
@@ -137,6 +154,7 @@ export function SettingsModal() {
                         {activeTab === "daily" && "Daily Notes"}
                         {activeTab === "templates" && "Templates"}
                         {activeTab === "dataview" && "Databases (Dataview)"}
+                        {activeTab === "tasks" && "Tasks"}
                     </h2>
                     <button className="icon-btn" onClick={closeSettings} title="Close Settings">
                         <X size={20} />
@@ -314,6 +332,44 @@ export function SettingsModal() {
 
                             <div style={{ marginTop: 'auto', paddingTop: '24px', borderTop: '1px dashed var(--bg-border)', fontSize: '12px', color: 'var(--text-secondary)' }}>
                                 Dataview settings are securely isolated and saved to <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '2px 4px', borderRadius: '2px' }}>.syntagma/dataview.json</code>
+                            </div>
+                        </>
+                    )}
+
+                    {activeTab === "tasks" && (
+                        <>
+                            <div className="setting-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                <div style={{ maxWidth: '60%' }}>
+                                    <div style={{ fontWeight: 500, marginBottom: '4px' }}>Show Completed Tasks</div>
+                                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Include tasks checked as <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '2px 4px', borderRadius: '2px' }}>[x]</code> in the sidebar.</div>
+                                </div>
+                                <label className="switch">
+                                    <input
+                                        type="checkbox"
+                                        checked={showCompleted}
+                                        onChange={(e) => updateTasksSetting('showCompleted', e.target.checked)}
+                                    />
+                                    <span className="slider round"></span>
+                                </label>
+                            </div>
+
+                            <div className="setting-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                <div style={{ maxWidth: '60%' }}>
+                                    <div style={{ fontWeight: 500, marginBottom: '4px' }}>Group By File Instead of Date</div>
+                                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Group the task lists visually by their parent `.md` document name rather than their inner `due:` parameter date.</div>
+                                </div>
+                                <label className="switch">
+                                    <input
+                                        type="checkbox"
+                                        checked={groupByFile}
+                                        onChange={(e) => updateTasksSetting('groupByFile', e.target.checked)}
+                                    />
+                                    <span className="slider round"></span>
+                                </label>
+                            </div>
+
+                            <div style={{ marginTop: 'auto', paddingTop: '24px', borderTop: '1px dashed var(--bg-border)', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                Tasks settings are securely isolated and saved to <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '2px 4px', borderRadius: '2px' }}>.syntagma/tasks.json</code>
                             </div>
                         </>
                     )}

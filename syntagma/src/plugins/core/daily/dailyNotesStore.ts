@@ -11,7 +11,7 @@ export interface DailyNotesState {
     loadSettings: () => Promise<void>;
     saveSettings: () => Promise<void>;
 
-    openDailyNote: () => Promise<void>;
+    openDailyNote: (targetDate?: Date) => Promise<void>;
 }
 
 /**
@@ -34,12 +34,12 @@ export const useDailyNotesStore = create<DailyNotesState>((set, get) => ({
     dateFormat: "YYYY-MM-DD",
     templatePath: "",
 
-    openDailyNote: async () => {
+    openDailyNote: async (targetDate?: Date) => {
         const vaultPath = useWorkspaceStore.getState().vaultPath;
         if (!vaultPath) return;
 
         const { folderPath, dateFormat, templatePath } = get();
-        const dateStr = formatDate(dateFormat, new Date());
+        const dateStr = formatDate(dateFormat, targetDate || new Date());
 
         // Normalize paths
         const normalizedFolder = folderPath.trim().replace(/^\/+/, '').replace(/\/+$/, '');

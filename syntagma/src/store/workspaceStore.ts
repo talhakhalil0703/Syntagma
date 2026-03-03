@@ -25,6 +25,7 @@ interface WorkspaceState {
   // Tab State
   openTabs: TabItem[];
   activeTabId: string | null;
+  viewMode: "edit" | "read";
 
   // Actions
   toggleLeftSidebar: () => void;
@@ -34,6 +35,7 @@ interface WorkspaceState {
   openTab: (tab: TabItem) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
+  toggleViewMode: () => void;
 
   initWorkspace: () => Promise<void>;
   openVault: () => Promise<void>;
@@ -67,6 +69,7 @@ const initialLeftPanes: PaneItem[] = [
 const initialRightPanes: PaneItem[] = [
   { id: "pane-calendar", title: "Calendar", pluginId: "core-calendar" },
   { id: "pane-dataview", title: "Databases", pluginId: "core-dataview" },
+  { id: "pane-tasks", title: "Tasks", pluginId: "core-tasks" },
   { id: "pane-properties", title: "Properties", pluginId: "core-properties" },
 ];
 
@@ -80,6 +83,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   openTabs: [{ id: "welcome", title: "Untitled Note.md" }],
   activeTabId: "welcome",
+  viewMode: "edit",
 
   toggleLeftSidebar: () => {
     set((state) => ({ leftSidebarOpen: !state.leftSidebarOpen }));
@@ -150,6 +154,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     useWorkspaceStore.getState().saveWorkspaceState();
   },
 
+  toggleViewMode: () => {
+    set((state) => ({
+      viewMode: state.viewMode === "edit" ? "read" : "edit"
+    }));
+    useWorkspaceStore.getState().saveWorkspaceState();
+  },
+
   initWorkspace: async () => {
     let currentVault = localStorage.getItem("syntagma-vault-path");
 
@@ -191,7 +202,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
           leftSidebarOpen: parsed.leftSidebarOpen ?? true,
           rightSidebarOpen: parsed.rightSidebarOpen ?? true,
           openTabs: parsed.openTabs || [{ id: "welcome", title: "Untitled Note.md" }],
-          activeTabId: parsed.activeTabId || "welcome"
+          activeTabId: parsed.activeTabId || "welcome",
+          viewMode: parsed.viewMode || "edit",
         });
       } catch (e) {
         console.error("Failed to parse workspace config", e);
@@ -208,7 +220,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       leftSidebarOpen: state.leftSidebarOpen,
       rightSidebarOpen: state.rightSidebarOpen,
       openTabs: state.openTabs,
-      activeTabId: state.activeTabId
+      activeTabId: state.activeTabId,
+      viewMode: state.viewMode,
     }, null, 2);
 
     await FileSystemAPI.writeFile(`${vaultPath}/.syntagma/workspace.json`, payload);

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PluginRegistry } from '../../plugins/PluginRegistry';
-import { Plugin, PluginManifest } from '../../plugins/Plugin';
-import { App } from '../../plugins/PluginRegistry';
+import { Plugin } from '../../plugins/Plugin';
+import type { PluginManifest } from '../../plugins/Plugin';
+import type { App } from '../../plugins/PluginRegistry';
 
 // Mock a simple plugin for testing
 class MockPlugin extends Plugin {

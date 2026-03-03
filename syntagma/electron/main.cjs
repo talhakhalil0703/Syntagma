@@ -15,7 +15,8 @@ function createWindow() {
         titleBarStyle: 'hiddenInset', // Makes it look native on Mac
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false // Simplifies plugin access to the FS for this prototype
+            contextIsolation: false, // Simplifies plugin access to the FS for this prototype
+            webviewTag: true // Required for BrowserPlugin embedded webs
         }
     });
 
@@ -248,6 +249,46 @@ ipcMain.handle('fs:mkdir', async (event, { dirPath }) => {
     }
 });
 
+// Copy file utility
+ipcMain.handle('fs:copyFile', async (event, { source, destination }) => {
+    try {
+        await fsPromises.copyFile(source, destination);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Headless PDF Export Engine
+ipcMain.handle('fs:printToPDF', async (event, { htmlContent, filePath }) => {
+    try {
+        const hiddenWindow = new BrowserWindow({
+            show: false,
+            webPreferences: { nodeIntegration: false }
+        });
+
+        // Load the HTML payload directly into Chromium memory
+        await hiddenWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+        // Render to PDF Buffer
+        const pdfBuffer = await hiddenWindow.webContents.printToPDF({
+            printBackground: true,
+            pageSize: 'A4'
+        });
+
+        // Write the Buffer natively
+        await fsPromises.writeFile(filePath, pdfBuffer);
+
+        // Garbage collect
+        hiddenWindow.destroy();
+
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to map PDF buffer: ", error);
+        return { success: false, error: error.message };
+    }
+});
+
 // Helper to get Vault Path (currently mocks the user documents folder)
 ipcMain.handle('fs:getVaultPath', () => {
     // For local prototype testing we will just use a folder in Documents
@@ -270,6 +311,26 @@ ipcMain.handle('fs:selectVault', async () => {
         return { success: true, path: result.filePaths[0] };
     } catch (error) {
         console.error("Failed to open directory dialog:", error);
+        return { success: false, error: error.message };
+    }
+});
+
+// Prompt User for Save File Destination
+ipcMain.handle('fs:showSaveDialog', async (event, { title, defaultPath, filters }) => {
+    try {
+        const result = await dialog.showSaveDialog(mainWindow, {
+            title: title || 'Save File',
+            defaultPath: defaultPath,
+            filters: filters || []
+        });
+
+        if (result.canceled || !result.filePath) {
+            return { success: false, canceled: true };
+        }
+
+        return { success: true, filePath: result.filePath };
+    } catch (error) {
+        console.error("Failed to show save dialog:", error);
         return { success: false, error: error.message };
     }
 });

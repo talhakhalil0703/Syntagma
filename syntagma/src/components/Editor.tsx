@@ -4,6 +4,8 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { EditorView } from "@codemirror/view";
 import { useThemeStore } from "../store/themeStore";
+import { useWorkspaceStore } from "../store/workspaceStore";
+import { FileSystemAPI } from "../utils/fs";
 
 interface EditorProps {
   value?: string;
@@ -84,12 +86,60 @@ export const Editor: React.FC<EditorProps> = ({
     [themeExtensions],
   );
 
+  const dropExtension = useMemo(() => {
+    return EditorView.domEventHandlers({
+      drop(event, view) {
+        const transfer = event.dataTransfer;
+        if (!transfer || !transfer.files || transfer.files.length === 0) return false;
+
+        const file = transfer.files[0];
+        if (!file.type.startsWith("image/")) return false; // Ignore Text drops
+
+        event.preventDefault();
+
+        // Native File objects in desktop Electron emit absolute source paths natively
+        const sourcePath = (file as any).path;
+        if (!sourcePath) return false;
+
+        const vaultPath = useWorkspaceStore.getState().vaultPath;
+        if (!vaultPath) return false;
+
+        (async () => {
+          const attachmentsDir = `${vaultPath}/Attachments`;
+          // Automatically scaffold Attachments tracking dir if absent
+          await FileSystemAPI.mkdir(attachmentsDir);
+
+          const safeIdentifier = file.name.replace(/\s+/g, "_");
+          const fileName = `${Date.now()}_${safeIdentifier}`;
+          const destPath = `${attachmentsDir}/${fileName}`;
+
+          const success = await FileSystemAPI.copyFile(sourcePath, destPath);
+
+          if (success) {
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            if (pos !== null) {
+              const syntax = `![[Attachments/${fileName}]]\n`;
+              view.dispatch({
+                changes: { from: pos, to: pos, insert: syntax },
+                selection: { anchor: pos + syntax.length }
+              });
+            }
+          } else {
+            console.error("Failed to copy image to Attachments folder.");
+          }
+        })();
+
+        return true; // We handled it
+      }
+    });
+  }, []);
+
   return (
     <div style={{ height: "100%", width: "100%", overflow: "auto" }}>
       <CodeMirror
         value={value}
         height="100%"
-        extensions={extensions}
+        extensions={[...extensions, dropExtension]}
         onChange={onChange}
         theme={isDark ? "dark" : "light"}
         basicSetup={{

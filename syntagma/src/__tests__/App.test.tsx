@@ -2,6 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import App from "../App";
 
+vi.mock("@excalidraw/excalidraw", () => ({
+  Excalidraw: () => <div data-testid="excalidraw-mock" />
+}));
+
 describe("App Component", () => {
   beforeAll(() => {
     // Mock localStorage for the initWorkspace call

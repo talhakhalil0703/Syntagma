@@ -1,26 +1,31 @@
 import { Plugin } from "../../Plugin";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
-import { useDataviewStore } from "./dataviewStore";
-import { DataviewPane } from "./DataviewPane";
+import { useCalendarStore } from "./calendarStore";
+import { CalendarPane } from "./CalendarPane";
 
-export default class DataviewPlugin extends Plugin {
-    id = "core-dataview";
-    name = "Databases (Dataview)";
+export default class CalendarPlugin extends Plugin {
+    id = "core-calendar";
+    name = "Calendar";
     version = "1.0.0";
-    description = "Query your vault's Markdown frontmatter into dynamic tables.";
+    description = "Visualize daily notes and timelines on a monthly grid.";
     author = "Syntagma Core";
 
     async onload(): Promise<void> {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
         // Register the UI View
-        this.app.workspace.registerView(this.manifest.id, DataviewPane);
+        this.app.workspace.registerView(this.manifest.id, CalendarPane);
 
         // Whenever a new vault is opened, synchronize our store settings
         useWorkspaceStore.subscribe((state, prevState) => {
             if (state.vaultPath !== prevState.vaultPath && state.vaultPath) {
-                useDataviewStore.getState().loadSettings();
+                useCalendarStore.getState().queryActiveDays();
             }
+        });
+
+        // Listen for active file saves/modifications so we can refresh the calendar days
+        window.addEventListener('syntagma:reload-active-file', () => {
+            useCalendarStore.getState().queryActiveDays();
         });
     }
 

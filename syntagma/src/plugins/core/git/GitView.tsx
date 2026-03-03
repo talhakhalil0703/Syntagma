@@ -13,8 +13,6 @@ export function GitView() {
         checkStatus,
         stageAll,
         commit,
-        push,
-        pull,
         sync
     } = useGitStore();
 

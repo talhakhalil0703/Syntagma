@@ -156,5 +156,44 @@ export const FileSystemAPI = {
             console.error(e);
             return false;
         }
+    },
+
+    async copyFile(source: string, destination: string): Promise<boolean> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return false;
+            const res = await ipc.invoke('fs:copyFile', { source, destination });
+            return res.success;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    },
+
+    async printToPDF(htmlContent: string, filePath: string): Promise<boolean> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return false;
+            const res = await ipc.invoke('fs:printToPDF', { htmlContent, filePath });
+            return res.success;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    },
+
+    async showSaveDialog(options: { title?: string, defaultPath?: string, filters?: { name: string, extensions: string[] }[] }): Promise<{ canceled: boolean; filePath?: string }> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return { canceled: true };
+            const res = await ipc.invoke('fs:showSaveDialog', options);
+            if (res.success && res.filePath) {
+                return { canceled: false, filePath: res.filePath };
+            }
+            return { canceled: !!res.canceled };
+        } catch (e) {
+            console.error(e);
+            return { canceled: true };
+        }
     }
 };
