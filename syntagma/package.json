@@ -62,5 +62,5 @@
     "vitest": "^4.0.18",
     "wait-on": "^9.0.4"
   },
-  "main": "electron/main.js"
+  "main": "electron/main.cjs"
 }
