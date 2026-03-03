@@ -47,10 +47,26 @@ const initialLeftPanes: PaneItem[] = [
     title: "File Explorer",
     pluginId: "core-file-explorer",
   },
+  {
+    id: "pane-search",
+    title: "Search",
+    pluginId: "core-search",
+  },
+  {
+    id: "pane-bookmarks",
+    title: "Bookmarks",
+    pluginId: "core-bookmarks",
+  },
+  {
+    id: "pane-git",
+    title: "Git",
+    pluginId: "core-git",
+  }
 ];
 
 const initialRightPanes: PaneItem[] = [
   { id: "pane-calendar", title: "Calendar", pluginId: "core-calendar" },
+  { id: "pane-dataview", title: "Databases", pluginId: "core-dataview" },
   { id: "pane-properties", title: "Properties", pluginId: "core-properties" },
 ];
 

@@ -30,7 +30,8 @@ import {
   Database,
   GitBranch,
   X,
-  Plus
+  Plus,
+  Calendar
 } from "lucide-react";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsModal } from "./components/SettingsModal";
@@ -39,6 +40,15 @@ import { Editor } from "./components/Editor";
 import { useSettingsStore } from "./store/settingsStore";
 import { registry } from "./plugins/PluginRegistry";
 import FileExplorerPlugin from "./plugins/core/explorer/FileExplorerPlugin";
+import SearchPlugin from "./plugins/core/search/SearchPlugin";
+import BookmarksPlugin from "./plugins/core/bookmarks/BookmarksPlugin";
+import GitPlugin from "./plugins/core/git/GitPlugin";
+import DailyNotesPlugin from "./plugins/core/daily/DailyNotesPlugin";
+import TemplatesPlugin from "./plugins/core/templates/TemplatesPlugin";
+import DataviewPlugin from "./plugins/core/dataview/DataviewPlugin";
+import { DataviewPane } from "./plugins/core/dataview/DataviewPane";
+import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
+import { useDailyNotesStore } from "./plugins/core/daily/dailyNotesStore";
 import { FileSystemAPI } from "./utils/fs";
 import "./styles/layout.css";
 
@@ -91,6 +101,54 @@ function App() {
       name: "File Explorer",
       version: "1.0.0",
       description: "Browse folders and files in your vault.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(SearchPlugin, {
+      id: "core-search",
+      name: "Global Search",
+      version: "1.0.0",
+      description: "Search across all files in your vault.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(BookmarksPlugin, {
+      id: "core-bookmarks",
+      name: "Bookmarks",
+      version: "1.0.0",
+      description: "Pin your favorite files to quickly access them.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(GitPlugin, {
+      id: "core-git",
+      name: "Git Version Control",
+      version: "1.0.0",
+      description: "Automate backing up and syncing your Vault to Git.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(DailyNotesPlugin, {
+      id: "core-daily-notes",
+      name: "Daily Notes",
+      version: "1.0.0",
+      description: "Create and jump to today's daily journal/note.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(TemplatesPlugin, {
+      id: "core-templates",
+      name: "Templates",
+      version: "1.0.0",
+      description: "Insert template snippets with dynamic date and title variables.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(DataviewPlugin, {
+      id: "core-dataview",
+      name: "Databases (Dataview)",
+      version: "1.0.0",
+      description: "Query your vault's Markdown frontmatter into dynamic tables.",
       author: "Syntagma Core"
     });
 
@@ -215,6 +273,13 @@ function App() {
             <button className="icon-btn" title="Explorer"><Files size={24} /></button>
             <button className="icon-btn" title="Search"><Search size={24} /></button>
             <button className="icon-btn" title="Bookmarks"><Bookmark size={24} /></button>
+            <button
+              className="icon-btn"
+              title="Daily Note"
+              onClick={() => useDailyNotesStore.getState().openDailyNote()}
+            >
+              <Calendar size={24} />
+            </button>
 
             <div className="spacer" />
 
@@ -396,6 +461,7 @@ function App() {
         {/* Global Modals */}
         <CommandPalette />
         <SettingsModal />
+        <TemplateSelectorModal />
       </div>
     </DndContext>
   );

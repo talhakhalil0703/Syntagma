@@ -15,6 +15,17 @@ export interface DirEntry {
     path: string;
 }
 
+export interface SearchMatch {
+    lineNumber: number;
+    excerpt: string;
+}
+
+export interface SearchResult {
+    filePath: string;
+    fileName: string;
+    matches: SearchMatch[];
+}
+
 export const FileSystemAPI = {
     async writeFile(filePath: string, content: string): Promise<boolean> {
         try {
@@ -76,6 +87,47 @@ export const FileSystemAPI = {
         } catch (e) {
             console.error(e);
             return [];
+        }
+    },
+
+    async readDirRecursive(dirPath: string): Promise<DirEntry[]> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return [];
+            const res = await ipc.invoke('fs:readDirRecursive', { dirPath });
+            if (res.success) {
+                return res.items;
+            }
+            return [];
+        } catch (e) {
+            console.error(e);
+            return [];
+        }
+    },
+
+    async searchVault(vaultPath: string, query: string): Promise<SearchResult[]> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return [];
+            const res = await ipc.invoke('fs:searchVault', { vaultPath, query });
+            if (res.success) {
+                return res.results;
+            }
+            return [];
+        } catch (e) {
+            console.error(e);
+            return [];
+        }
+    },
+
+    async executeGitCommand(vaultPath: string, command: string): Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return { success: false, error: "IPC not configured" };
+            return await ipc.invoke('fs:executeGitCommand', { vaultPath, command });
+        } catch (e: any) {
+            console.error(e);
+            return { success: false, error: e.message };
         }
     },
 

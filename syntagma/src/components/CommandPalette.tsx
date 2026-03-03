@@ -1,29 +1,63 @@
 import { useEffect, useState, useRef } from "react";
 import { useSettingsStore } from "../store/settingsStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
-import { Search, File, Command } from "lucide-react";
+import { Search, File, Command as CommandIcon } from "lucide-react";
+import { FileSystemAPI, type DirEntry } from "../utils/fs";
+import { fuzzyMatch } from "../utils/search";
 
 export function CommandPalette() {
-    const { isCommandPaletteOpen, isQuickOpen, closeCommandPalette } = useSettingsStore();
-    const { openTab } = useWorkspaceStore();
+    const { isCommandPaletteOpen, isQuickOpen, closeCommandPalette, commands } = useSettingsStore();
+    const { openTab, vaultPath } = useWorkspaceStore();
     const [query, setQuery] = useState("");
+    const [files, setFiles] = useState<{ id: string, title: string }[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Mock data for commands VS files
-    const files = [
-        { id: '1', title: 'Untitled Note.md' },
-        { id: '2', title: 'Project Plan.md' },
-        { id: '3', title: 'Ideas.md' },
-    ];
+    // Fetch files dynamically when Quick Open is activated
+    useEffect(() => {
+        let isMounted = true;
 
-    const commands = [
-        { id: 'c1', title: 'Create new note' },
-        { id: 'c2', title: 'Toggle Light/Dark Theme' },
-        { id: 'c3', title: 'Open Settings' },
-    ];
+        async function fetchFiles() {
+            if (isCommandPaletteOpen && isQuickOpen && vaultPath) {
+                const entries = await FileSystemAPI.readDirRecursive(vaultPath);
+                if (!isMounted) return;
 
-    const results = isQuickOpen ? files : commands;
-    const filteredResults = results.filter(item => item.title.toLowerCase().includes(query.toLowerCase()));
+                const mdFiles = entries
+                    .filter(e => e.name.endsWith('.md'))
+                    .map(e => {
+                        // Create a title relative to the vault path
+                        let relPath = e.path;
+                        if (relPath.startsWith(vaultPath)) {
+                            relPath = relPath.substring(vaultPath.length);
+                            if (relPath.startsWith('/') || relPath.startsWith('\\')) {
+                                relPath = relPath.substring(1);
+                            }
+                        }
+                        return { id: e.path, title: relPath || e.name };
+                    });
+
+                setFiles(mdFiles);
+            }
+        }
+
+        fetchFiles();
+
+        return () => { isMounted = false; };
+    }, [isCommandPaletteOpen, isQuickOpen, vaultPath]);
+
+    const commandItems = commands.map(c => ({
+        id: c.id,
+        title: c.name,
+        action: c.callback
+    }));
+
+    const fileItems = files.map(f => ({
+        id: f.id,
+        title: f.title,
+        action: () => openTab({ id: f.id, title: f.title.split('/').pop() || f.title })
+    }));
+
+    const results = isQuickOpen ? fileItems : commandItems;
+    const filteredResults = results.filter(item => fuzzyMatch(query, item.title));
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -120,15 +154,11 @@ export function CommandPalette() {
                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             onClick={() => {
-                                if (isQuickOpen) {
-                                    openTab({ id: item.id, title: item.title });
-                                } else {
-                                    console.log("Executed command:", item.title);
-                                }
+                                item.action();
                                 closeCommandPalette();
                             }}
                         >
-                            {isQuickOpen ? <File size={16} color="var(--text-secondary)" /> : <Command size={16} color="var(--text-secondary)" />}
+                            {isQuickOpen ? <File size={16} color="var(--text-secondary)" /> : <CommandIcon size={16} color="var(--text-secondary)" />}
                             {item.title}
                         </div>
                     ))}
