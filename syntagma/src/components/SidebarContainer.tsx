@@ -8,6 +8,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { type PaneItem } from "../store/workspaceStore";
 import { GripVertical } from "lucide-react";
+import { registry } from "../plugins/PluginRegistry";
 
 interface SidebarProps {
   id: "left" | "right";
@@ -69,6 +70,8 @@ const SortablePane: React.FC<SortablePaneProps> = ({ pane }) => {
     isDragging,
   } = useSortable({ id: pane.id });
 
+  const ViewComponent = registry.getView(pane.pluginId);
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -103,16 +106,26 @@ const SortablePane: React.FC<SortablePaneProps> = ({ pane }) => {
         <span style={{ fontSize: "13px", fontWeight: 500 }}>{pane.title}</span>
       </div>
 
-      {/* Pane Content (Mock for now) */}
+      {/* Pane Content */}
       <div
         style={{
-          padding: "8px",
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
           fontSize: "12px",
-          color: "var(--text-secondary)",
+          color: "var(--text-primary)",
+          overflowY: 'auto',
           minHeight: "100px",
         }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
-        Content for {pane.pluginId} goes here...
+        {ViewComponent ? <ViewComponent /> : (
+          <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
+            Waiting for plugin payload...
+          </div>
+        )}
       </div>
     </div>
   );

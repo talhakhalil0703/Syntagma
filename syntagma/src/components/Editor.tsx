@@ -6,12 +6,12 @@ import { EditorView } from "@codemirror/view";
 import { useThemeStore } from "../store/themeStore";
 
 interface EditorProps {
-  initialValue?: string;
+  value?: string;
   onChange?: (val: string) => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
-  initialValue = "",
+  value = "",
   onChange,
 }) => {
   const { mode, systemDark } = useThemeStore();
@@ -87,7 +87,7 @@ export const Editor: React.FC<EditorProps> = ({
   return (
     <div style={{ height: "100%", width: "100%", overflow: "auto" }}>
       <CodeMirror
-        value={initialValue}
+        value={value}
         height="100%"
         extensions={extensions}
         onChange={onChange}
