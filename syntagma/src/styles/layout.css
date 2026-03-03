@@ -144,7 +144,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border: 1px solid var(--bg-border);
   border-bottom: none;
   border-top-left-radius: 6px;
@@ -153,12 +153,14 @@ body {
   color: var(--text-secondary);
   cursor: pointer;
   -webkit-app-region: no-drag;
+  flex-shrink: 0;
 }
 
 .workspace-tab.active {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-weight: 500;
+  border-top: 2px solid var(--text-accent);
 }
 
 .status-bar {

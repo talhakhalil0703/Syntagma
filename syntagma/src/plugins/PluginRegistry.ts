@@ -5,7 +5,7 @@ import { useWorkspaceStore } from "../store/workspaceStore";
 export interface App {
     workspace: {
         openTab: (tabId: string, title?: string) => void;
-        registerView: (viewId: string, component: React.FC) => void;
+        registerView: (viewId: string, component: React.FC, icon?: any) => void;
         // ... we will expose more safe wrappers here
     };
     commands: {
@@ -16,7 +16,7 @@ export interface App {
 
 export class PluginRegistry {
     private plugins: Map<string, Plugin> = new Map();
-    private views: Record<string, React.FC> = {};
+    private views: Record<string, { component: React.FC; icon?: any }> = {};
     private app: App;
 
     constructor() {
@@ -26,8 +26,8 @@ export class PluginRegistry {
                 openTab: (tabId, title = "New Note") => {
                     useWorkspaceStore.getState().openTab({ id: tabId, title });
                 },
-                registerView: (viewId, component) => {
-                    this.views[viewId] = component;
+                registerView: (viewId, component, icon) => {
+                    this.views[viewId] = { component, icon };
                 }
             },
             commands: {
@@ -39,7 +39,7 @@ export class PluginRegistry {
         };
     }
 
-    getView(viewId: string): React.FC | undefined {
+    getView(viewId: string): { component: React.FC; icon?: any } | undefined {
         return this.views[viewId];
     }
 

@@ -2,6 +2,7 @@ import { Plugin } from "../../Plugin";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useCalendarStore } from "./calendarStore";
 import { CalendarPane } from "./CalendarPane";
+import { Calendar } from "lucide-react";
 
 export default class CalendarPlugin extends Plugin {
     id = "core-calendar";
@@ -14,7 +15,7 @@ export default class CalendarPlugin extends Plugin {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
         // Register the UI View
-        this.app.workspace.registerView(this.manifest.id, CalendarPane);
+        this.app.workspace.registerView(this.manifest.id, CalendarPane, Calendar);
 
         // Whenever a new vault is opened, synchronize our store settings
         useWorkspaceStore.subscribe((state, prevState) => {

@@ -31,7 +31,8 @@ import {
   GitBranch,
   X,
   Plus,
-  Calendar
+  Calendar,
+  Pin
 } from "lucide-react";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsModal } from "./components/SettingsModal";
@@ -77,7 +78,9 @@ function App() {
     initWorkspace,
     openVault,
     viewMode,
-    toggleViewMode
+    toggleViewMode,
+    addNoteToSidebar,
+    vaultPath
   } = useWorkspaceStore();
 
   const { openSettings, loadSettings } = useSettingsStore();
@@ -218,6 +221,16 @@ function App() {
   // Sync File Content with Active Tab
   useEffect(() => {
     let isMounted = true;
+
+    // Update document title with Vault Name
+    if (vaultPath) {
+      const vaultName = vaultPath.split('/').pop() || "Syntagma";
+      const tabTitle = openTabs.find(t => t.id === activeTabId)?.title || "Untitled";
+      document.title = `${vaultName} - ${tabTitle}`;
+    } else {
+      document.title = "Syntagma";
+    }
+
     const loadContent = async () => {
       if (!activeTabId) {
         if (isMounted) setFileContent("");
@@ -431,6 +444,18 @@ function App() {
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <button
                     className="icon-btn"
+                    onClick={() => {
+                      if (activeTabId && !activeTabId.startsWith("tab-") && !activeTabId.startsWith("browser-") && activeTabId !== "welcome") {
+                        const tabTitle = openTabs.find(t => t.id === activeTabId)?.title || "Attached Note";
+                        addNoteToSidebar(activeTabId, tabTitle, "right");
+                      }
+                    }}
+                    title="Pin note to Right Sidebar"
+                  >
+                    <Pin size={18} />
+                  </button>
+                  <button
+                    className="icon-btn"
                     onClick={toggleViewMode}
                     title={viewMode === "edit" ? "Switch to Reading View" : "Switch to Editing View"}
                   >
@@ -454,6 +479,22 @@ function App() {
                   )}
                 </div>
               </header>
+
+              {/* Full Path Breadcrumb Bar */}
+              {activeTabId && !activeTabId.startsWith("tab-") && !activeTabId.startsWith("browser-") && activeTabId !== "welcome" && (
+                <div style={{
+                  padding: "4px 16px",
+                  fontSize: "11px",
+                  color: "var(--text-secondary)",
+                  borderBottom: "1px solid var(--bg-border)",
+                  backgroundColor: "var(--bg-primary)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis"
+                }}>
+                  {activeTabId}
+                </div>
+              )}
 
               <div style={{ flexGrow: 1, width: "100%", height: "100%", overflow: "auto" }}>
                 {activeTabId?.startsWith("browser-") ? (

@@ -1,5 +1,6 @@
 import { Plugin } from "../../Plugin";
 import { BookmarksView } from "./BookmarksView";
+import { Bookmark } from "lucide-react";
 import { useBookmarksStore } from "./bookmarksStore";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 
@@ -14,7 +15,7 @@ export default class BookmarksPlugin extends Plugin {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
         // Register the Bookmarks Sidebar Pane
-        this.app.workspace.registerView(this.manifest.id, BookmarksView);
+        this.app.workspace.registerView(this.manifest.id, BookmarksView, Bookmark);
 
         // Register the global Command Palette action
         this.app.commands.addCommand({

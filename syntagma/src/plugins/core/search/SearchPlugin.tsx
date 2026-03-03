@@ -1,5 +1,6 @@
 import { Plugin } from "../../Plugin";
 import { SearchView } from "./SearchView";
+import { Search } from "lucide-react";
 
 export default class SearchPlugin extends Plugin {
     id = "core-search";
@@ -11,7 +12,7 @@ export default class SearchPlugin extends Plugin {
     async onload(): Promise<void> {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
-        this.app.workspace.registerView(this.manifest.id, SearchView);
+        this.app.workspace.registerView(this.manifest.id, SearchView, Search);
 
         // Mock ribbon icon registration for prototype
         console.log("Search: Registered Ribbon Icon");

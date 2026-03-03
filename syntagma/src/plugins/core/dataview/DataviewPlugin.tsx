@@ -2,6 +2,7 @@ import { Plugin } from "../../Plugin";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useDataviewStore } from "./dataviewStore";
 import { DataviewPane } from "./DataviewPane";
+import { Database } from "lucide-react";
 
 export default class DataviewPlugin extends Plugin {
     id = "core-dataview";
@@ -14,7 +15,7 @@ export default class DataviewPlugin extends Plugin {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
         // Register the UI View
-        this.app.workspace.registerView(this.manifest.id, DataviewPane);
+        this.app.workspace.registerView(this.manifest.id, DataviewPane, Database);
 
         // Whenever a new vault is opened, synchronize our store settings
         useWorkspaceStore.subscribe((state, prevState) => {

@@ -2,6 +2,8 @@
 
 Welcome, fellow agent! This repository follows a strict architectural pattern and prioritizes high-quality, tested code. When working on Syntagma, please adhere to the following rules:
 
+Always ask the user questions if anything is unclear.
+
 ### 1. Architecture & State Management
 - **Zustand for State**: Core application state lives in `src/store`. Do NOT use React Context for global state.
 - **Plugin Store Isolation Constraint**: Any state specific to a single plugin (like `bookmarksStore` or a future `gitStore`) **MUST** live exclusively inside the plugin's isolated folder (`src/plugins/<type>/<name>/`), and should NEVER pollute the global `src/store` folder.

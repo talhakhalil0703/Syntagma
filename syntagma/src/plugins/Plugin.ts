@@ -37,7 +37,7 @@ export abstract class Plugin {
         // Interface to add icon to the Left Activity Ribbon
     }
 
-    registerView(_viewId: string, _viewCreator: () => any) {
+    registerView(_viewId: string, _viewCreator: () => any, _icon?: any) {
         // Interface to register custom React Components for Sidebars or Editors
     }
 }

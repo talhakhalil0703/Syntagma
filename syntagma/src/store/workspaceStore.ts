@@ -5,7 +5,9 @@ import { registry } from "../plugins/PluginRegistry";
 export interface PaneItem {
   id: string;
   title: string;
-  pluginId: string; // The origin plugin
+  type: "plugin" | "note";
+  pluginId?: string; // The origin plugin
+  noteId?: string;
 }
 
 export interface TabItem {
@@ -21,6 +23,8 @@ interface WorkspaceState {
   rightSidebarOpen: boolean;
   leftPanes: PaneItem[];
   rightPanes: PaneItem[];
+  activeLeftPaneId: string | null;
+  activeRightPaneId: string | null;
 
   // Tab State
   openTabs: TabItem[];
@@ -30,7 +34,10 @@ interface WorkspaceState {
   // Actions
   toggleLeftSidebar: () => void;
   toggleRightSidebar: () => void;
+  setActiveLeftPane: (id: string) => void;
+  setActiveRightPane: (id: string) => void;
   movePane: (paneId: string, sourceSidebar: "left" | "right", destSidebar: "left" | "right", newIndex: number) => void;
+  addNoteToSidebar: (noteId: string, title: string, sidebar: "left" | "right") => void;
 
   openTab: (tab: TabItem) => void;
   closeTab: (tabId: string) => void;
@@ -47,30 +54,34 @@ const initialLeftPanes: PaneItem[] = [
   {
     id: "pane-file-explorer",
     title: "File Explorer",
+    type: "plugin",
     pluginId: "core-file-explorer",
   },
   {
     id: "pane-search",
     title: "Search",
+    type: "plugin",
     pluginId: "core-search",
   },
   {
     id: "pane-bookmarks",
     title: "Bookmarks",
+    type: "plugin",
     pluginId: "core-bookmarks",
   },
   {
     id: "pane-git",
     title: "Git",
+    type: "plugin",
     pluginId: "core-git",
   }
 ];
 
 const initialRightPanes: PaneItem[] = [
-  { id: "pane-calendar", title: "Calendar", pluginId: "core-calendar" },
-  { id: "pane-dataview", title: "Databases", pluginId: "core-dataview" },
-  { id: "pane-tasks", title: "Tasks", pluginId: "core-tasks" },
-  { id: "pane-properties", title: "Properties", pluginId: "core-properties" },
+  { id: "pane-calendar", title: "Calendar", type: "plugin", pluginId: "core-calendar" },
+  { id: "pane-dataview", title: "Databases", type: "plugin", pluginId: "core-dataview" },
+  { id: "pane-tasks", title: "Tasks", type: "plugin", pluginId: "core-tasks" },
+  { id: "pane-properties", title: "Properties", type: "plugin", pluginId: "core-properties" },
 ];
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
@@ -80,6 +91,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   rightSidebarOpen: true,
   leftPanes: initialLeftPanes,
   rightPanes: initialRightPanes,
+  activeLeftPaneId: initialLeftPanes[0]?.id || null,
+  activeRightPaneId: initialRightPanes[0]?.id || null,
 
   openTabs: [{ id: "welcome", title: "Untitled Note.md" }],
   activeTabId: "welcome",
@@ -91,6 +104,30 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   },
   toggleRightSidebar: () => {
     set((state) => ({ rightSidebarOpen: !state.rightSidebarOpen }));
+    useWorkspaceStore.getState().saveWorkspaceState();
+  },
+  setActiveLeftPane: (id) => {
+    set({ activeLeftPaneId: id });
+    useWorkspaceStore.getState().saveWorkspaceState();
+  },
+  setActiveRightPane: (id) => {
+    set({ activeRightPaneId: id });
+    useWorkspaceStore.getState().saveWorkspaceState();
+  },
+  addNoteToSidebar: (noteId, title, sidebar) => {
+    set((state) => {
+      const newPane: PaneItem = {
+        id: `pane-note-${Date.now()}`,
+        title,
+        type: "note",
+        noteId
+      };
+      if (sidebar === "left") {
+        return { leftPanes: [...state.leftPanes, newPane], activeLeftPaneId: newPane.id, leftSidebarOpen: true };
+      } else {
+        return { rightPanes: [...state.rightPanes, newPane], activeRightPaneId: newPane.id, rightSidebarOpen: true };
+      }
+    });
     useWorkspaceStore.getState().saveWorkspaceState();
   },
 
@@ -201,6 +238,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         set({
           leftSidebarOpen: parsed.leftSidebarOpen ?? true,
           rightSidebarOpen: parsed.rightSidebarOpen ?? true,
+          leftPanes: parsed.leftPanes || initialLeftPanes,
+          rightPanes: parsed.rightPanes || initialRightPanes,
+          activeLeftPaneId: parsed.activeLeftPaneId || initialLeftPanes[0]?.id || null,
+          activeRightPaneId: parsed.activeRightPaneId || initialRightPanes[0]?.id || null,
           openTabs: parsed.openTabs || [{ id: "welcome", title: "Untitled Note.md" }],
           activeTabId: parsed.activeTabId || "welcome",
           viewMode: parsed.viewMode || "edit",
@@ -219,6 +260,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     const payload = JSON.stringify({
       leftSidebarOpen: state.leftSidebarOpen,
       rightSidebarOpen: state.rightSidebarOpen,
+      leftPanes: state.leftPanes,
+      rightPanes: state.rightPanes,
+      activeLeftPaneId: state.activeLeftPaneId,
+      activeRightPaneId: state.activeRightPaneId,
       openTabs: state.openTabs,
       activeTabId: state.activeTabId,
       viewMode: state.viewMode,

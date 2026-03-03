@@ -2,6 +2,7 @@ import { Plugin } from "../../Plugin";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useTasksStore } from "./tasksStore";
 import { TasksPane } from "./TasksPane";
+import { CheckSquare } from "lucide-react";
 
 export default class TasksPlugin extends Plugin {
     id = "core-tasks";
@@ -14,7 +15,7 @@ export default class TasksPlugin extends Plugin {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
         // Register the UI View
-        this.app.workspace.registerView(this.manifest.id, TasksPane);
+        this.app.workspace.registerView(this.manifest.id, TasksPane, CheckSquare);
 
         // Whenever a new vault is opened, synchronize our store settings
         useWorkspaceStore.subscribe((state, prevState) => {

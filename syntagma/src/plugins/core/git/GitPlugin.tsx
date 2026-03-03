@@ -1,5 +1,6 @@
 import { Plugin } from "../../Plugin";
 import { GitView } from "./GitView";
+import { GitBranch } from "lucide-react";
 import { useGitStore } from "./gitStore";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 
@@ -15,7 +16,7 @@ export default class GitPlugin extends Plugin {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
         // Register the Git Pane
-        this.app.workspace.registerView(this.manifest.id, GitView);
+        this.app.workspace.registerView(this.manifest.id, GitView, GitBranch);
 
         // Register the global Command Palette actions
         this.app.commands.addCommand({

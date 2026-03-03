@@ -1,6 +1,7 @@
 import { Plugin, type PluginManifest } from "../../Plugin";
 import type { App } from "../../PluginRegistry";
 import { FileExplorerView } from "./FileExplorerView";
+import { Files } from "lucide-react";
 
 const EXPLORER_MANIFEST: PluginManifest = {
     id: "core-file-explorer",
@@ -33,7 +34,7 @@ export default class FileExplorerPlugin extends Plugin {
         console.log("File Explorer: Registered Ribbon Icon");
 
         // Register the React View that renders the sidebar tree
-        this.app.workspace.registerView(this.manifest.id, FileExplorerView);
+        this.app.workspace.registerView(this.manifest.id, FileExplorerView, Files);
         console.log("File Explorer: Registered pane view");
     }
 
