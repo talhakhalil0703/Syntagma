@@ -1,0 +1,98 @@
+:root {
+  /* Dynamic themes built via User CSS snippets will override these */
+
+  /* Layout Dimensions */
+  --sidebar-width: 280px;
+  --header-height: 48px;
+
+  /* Colors - Light Theme (Default) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f4f5f6; /* Sidebars */
+  --bg-tertiary: #ebeced; /* Hover states */
+  --bg-border: #e3e3e3;
+  --text-primary: #1a1a1a;
+  --text-secondary: #5c5c5c;
+  --text-accent: #7b2cbf; /* Deep Purple for Syntagma */
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d30;
+  --bg-border: #3c3c3c;
+  --text-primary: #d4d4d4;
+  --text-secondary: #9cdcfe;
+  --text-accent: #9d4edd;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  overflow: hidden; /* App should control scrolling per pane */
+}
+
+/* Base Layout Structure */
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--bg-border);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition:
+    transform 0.2s ease,
+    width 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sidebar.right {
+  border-right: none;
+  border-left: 1px solid var(--bg-border);
+}
+
+.workspace-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+}
+
+.header {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--bg-border);
+  background: var(--bg-primary);
+  justify-content: space-between;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+}
+.icon-btn:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
