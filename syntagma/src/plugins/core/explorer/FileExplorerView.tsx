@@ -52,10 +52,7 @@ export const FileExplorerView: React.FC = () => {
     }
 
     return (
-        <div style={{ padding: "8px 0", userSelect: "none" }}>
-            <div style={{ padding: "0 12px 8px 12px", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                {vaultPath ? vaultPath.split('/').pop() : "Vault"}
-            </div>
+        <div style={{ padding: "0", userSelect: "none" }}>
             {entries.map(entry => (
                 <FileTreeItem key={entry.path} entry={entry} depth={0} />
             ))}

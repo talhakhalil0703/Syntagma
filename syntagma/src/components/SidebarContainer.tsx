@@ -144,25 +144,13 @@ const SortableTab: React.FC<SortableTabProps> = ({ pane, isActive, onClick, onCo
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "8px 12px",
-    cursor: "pointer",
-    borderBottom: isActive ? "2px solid var(--text-accent)" : "2px solid transparent",
-    color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-    backgroundColor: "transparent",
-    userSelect: "none",
-    height: "100%",
-    minWidth: "32px",
-    flexShrink: 0,
-    WebkitAppRegion: "no-drag"
   } as React.CSSProperties;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
+      className={`sidebar-tab ${isActive ? 'active' : ''}`}
       {...attributes}
       {...listeners}
       onPointerDown={(e) => {
@@ -175,27 +163,54 @@ const SortableTab: React.FC<SortableTabProps> = ({ pane, isActive, onClick, onCo
       onContextMenu={onContextMenu}
       title={pane.title}
     >
-      <IconComponent size={20} />
+      <div className="sidebar-tab-icon">
+        <IconComponent size={18} />
+      </div>
     </div>
   );
 };
 
 const ActivePaneContent: React.FC<{ pane: PaneItem }> = ({ pane }) => {
-  if (pane.type === "note" && pane.noteId) {
-    return <SidebarNoteView noteId={pane.noteId} />;
+  const { vaultPath } = useWorkspaceStore();
+
+  let headerTitle = pane.title;
+  if (pane.id === "pane-file-explorer" && vaultPath) {
+    headerTitle = vaultPath.split('/').pop() || "Vault";
   }
 
-  if (pane.type === "plugin" && pane.pluginId) {
+  let contentNode = null;
+  if (pane.type === "note" && pane.noteId) {
+    contentNode = <SidebarNoteView noteId={pane.noteId} />;
+  } else if (pane.type === "plugin" && pane.pluginId) {
     const viewReg = registry.getView(pane.pluginId);
     if (viewReg && viewReg.component) {
       const ViewComponent = viewReg.component;
-      return <ViewComponent />;
+      contentNode = <ViewComponent />;
+    } else {
+      contentNode = (
+        <div style={{ padding: '16px', color: 'var(--text-secondary)' }}>
+          Waiting for plugin payload...
+        </div>
+      );
     }
   }
 
   return (
-    <div style={{ padding: '16px', color: 'var(--text-secondary)' }}>
-      Waiting for plugin payload...
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{
+        padding: "8px 12px 8px 12px",
+        fontSize: "11px",
+        fontWeight: 600,
+        color: "var(--text-secondary)",
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+        flexShrink: 0,
+      }}>
+        {headerTitle}
+      </div>
+      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {contentNode}
+      </div>
     </div>
   );
 };

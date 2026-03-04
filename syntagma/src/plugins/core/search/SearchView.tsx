@@ -66,7 +66,7 @@ export function SearchView() {
             }}
         >
             {/* Search Input */}
-            <div style={{ padding: "16px", borderBottom: "1px solid var(--bg-border)" }}>
+            <div style={{ padding: "8px 16px 16px 16px", borderBottom: "1px solid var(--bg-border)" }}>
                 <div
                     style={{
                         display: "flex",
