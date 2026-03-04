@@ -382,3 +382,14 @@ ipcMain.handle('fs:showSaveDialog', async (event, { title, defaultPath, filters 
         return { success: false, error: error.message };
     }
 });
+
+// Rename file utility
+ipcMain.handle('fs:renameFile', async (event, { oldPath, newPath }) => {
+    try {
+        await fsPromises.rename(oldPath, newPath);
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to rename file:", error);
+        return { success: false, error: error.message };
+    }
+});

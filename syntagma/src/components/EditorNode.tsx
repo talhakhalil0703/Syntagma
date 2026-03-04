@@ -137,6 +137,10 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
 
         if (!sourceTabId || sourceTabId === "welcome" || sourceTabId.startsWith("tab-") || sourceTabId.startsWith("browser-")) return;
 
+        // Skip saving to paths that have been renamed away
+        const renamedPaths = (window as any).__renamedPaths as Set<string> | undefined;
+        if (renamedPaths?.has(sourceTabId)) return;
+
         if (!(window as any).saveTimeouts) {
             (window as any).saveTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
         }
@@ -149,6 +153,12 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
 
         const timeoutId = setTimeout(async () => {
             try {
+                // Double-check the path hasn't been renamed since the timeout was set
+                const rp = (window as any).__renamedPaths as Set<string> | undefined;
+                if (rp?.has(sourceTabId)) {
+                    saveTimeouts.delete(sourceTabId);
+                    return;
+                }
                 await FileSystemAPI.writeFile(sourceTabId, val);
                 saveTimeouts.delete(sourceTabId);
             } catch (e) {
@@ -171,10 +181,24 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
     };
 
     const commitRename = async (tab: any) => {
-        if (renamingTabId && renameVal.trim() && renameVal !== tab.title) {
+        if (renamingTabId && renameVal.trim()) {
             const oldPath = tab.id;
             let newTitle = renameVal.trim();
-            if (!newTitle.endsWith('.md')) newTitle += '.md';
+
+            // Enforce the original file extension
+            if (tab.title.endsWith('.excalidraw.md') && !newTitle.endsWith('.excalidraw.md')) {
+                newTitle += '.excalidraw.md';
+            } else if (tab.title.endsWith('.excalidraw') && !newTitle.endsWith('.excalidraw')) {
+                newTitle += '.excalidraw';
+            } else if (tab.title.endsWith('.md') && !newTitle.endsWith('.md')) {
+                newTitle += '.md';
+            }
+
+            // Prevent no-op
+            if (newTitle === tab.title) {
+                setRenamingTabId(null);
+                return;
+            }
 
             // Recompute new path by replacing the filename at the end
             const pathParts = oldPath.split('/');
@@ -182,10 +206,23 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
             const newPath = pathParts.join('/');
 
             try {
-                const content = await FileSystemAPI.readFile(oldPath);
-                if (content !== null) {
-                    await FileSystemAPI.writeFile(newPath, content);
-                    await FileSystemAPI.deleteFile(oldPath);
+                // Cancel any pending save for the old path to prevent it from
+                // recreating the old file after the rename completes
+                const saveTimeouts = (window as any).saveTimeouts as Map<string, ReturnType<typeof setTimeout>> | undefined;
+                if (saveTimeouts?.has(oldPath)) {
+                    clearTimeout(saveTimeouts.get(oldPath));
+                    saveTimeouts.delete(oldPath);
+                }
+
+                // Block all future saves to the old path BEFORE the async rename
+                // so that any onChange firing during the IPC round-trip is caught
+                if (!(window as any).__renamedPaths) {
+                    (window as any).__renamedPaths = new Set<string>();
+                }
+                ((window as any).__renamedPaths as Set<string>).add(oldPath);
+
+                const success = await FileSystemAPI.renameFile(oldPath, newPath);
+                if (success) {
                     renameTab(oldPath, newPath, newTitle);
 
                     // Extract base name assuming standard formatting
@@ -195,6 +232,9 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
                     if (oldBaseName && newBaseName && oldBaseName !== newBaseName) {
                         await useVaultIndexStore.getState().updateWikilinks(oldBaseName, newBaseName);
                     }
+                } else {
+                    // Rename failed — unblock saves to the old path
+                    ((window as any).__renamedPaths as Set<string>).delete(oldPath);
                 }
             } catch (e) {
                 console.error("Failed to rename file", e);
@@ -230,7 +270,7 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
                                 e.stopPropagation();
                                 if (!tab.id.startsWith("tab-") && !tab.id.startsWith("browser-") && tab.id !== "welcome") {
                                     setRenamingTabId(tab.id);
-                                    setRenameVal(tab.title);
+                                    setRenameVal(tab.title.replace(/\.excalidraw\.md$|\.excalidraw$|\.md$/, ''));
                                 }
                             }}
                         >

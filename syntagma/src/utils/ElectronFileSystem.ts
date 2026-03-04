@@ -202,4 +202,16 @@ export class ElectronFileSystem implements FileSystemProvider {
             return false;
         }
     }
+
+    async renameFile(oldPath: string, newPath: string): Promise<boolean> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return false;
+            const res = await ipc.invoke('fs:renameFile', { oldPath, newPath });
+            return res.success;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    }
 }

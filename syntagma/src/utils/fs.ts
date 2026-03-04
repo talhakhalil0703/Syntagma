@@ -37,6 +37,7 @@ export interface FileSystemProvider {
     printToPDF(htmlContent: string, filePath: string): Promise<boolean>;
     showSaveDialog(options: { title?: string, defaultPath?: string, filters?: { name: string, extensions: string[] }[] }): Promise<{ canceled: boolean; filePath?: string }>;
     deleteFile(filePath: string): Promise<boolean>;
+    renameFile(oldPath: string, newPath: string): Promise<boolean>;
 }
 
 import { ElectronFileSystem } from "./ElectronFileSystem";
@@ -78,6 +79,12 @@ class FileSystemEventTracker implements FileSystemProvider {
 
     async deleteFile(filePath: string): Promise<boolean> {
         const res = await this.inner.deleteFile(filePath);
+        if (res) this.emit();
+        return res;
+    }
+
+    async renameFile(oldPath: string, newPath: string): Promise<boolean> {
+        const res = await this.inner.renameFile(oldPath, newPath);
         if (res) this.emit();
         return res;
     }

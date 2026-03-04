@@ -26,6 +26,16 @@ export const ExcalidrawView: React.FC<ExcalidrawViewProps> = ({ fileContent, onC
         onChangeRef.current = onChange;
     }, [onChange]);
 
+    // Clean up debounce timer on unmount to prevent stale saves
+    useEffect(() => {
+        return () => {
+            if (debounceTimer.current) {
+                clearTimeout(debounceTimer.current);
+                debounceTimer.current = null;
+            }
+        };
+    }, []);
+
     useEffect(() => {
         if (fileId !== lastFileIdRef.current) {
             lastFileIdRef.current = fileId;

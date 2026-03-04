@@ -1,7 +1,11 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { FileSystemAPI, type DirEntry } from "../../../utils/fs";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
-import { ChevronRight, ChevronDown, File, FolderOpen, FileEdit, FolderPlus, ArrowDownUp, Maximize, ChevronsDownUp } from "lucide-react";
+import {
+    ChevronRight, ChevronDown, FolderPlus,
+    FileEdit, Maximize, ArrowDownUp, ChevronsDownUp,
+    FileText, FolderOpen
+} from "lucide-react";
 import { useContextMenuStore } from "../../../store/contextMenuStore";
 import './FileExplorer.css';
 
@@ -135,7 +139,50 @@ const FileTreeItem: React.FC<{ entry: DirEntry; depth: number }> = ({ entry, dep
         };
     }, [expanded, loadChildren]);
 
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [renameVal, setRenameVal] = useState(entry.name);
+
+    const initiateRename = () => {
+        setRenameVal(entry.name.replace(/\.excalidraw\.md$|\.excalidraw$|\.md$/, ''));
+        setIsRenaming(true);
+    };
+
+    const commitRename = async () => {
+        setIsRenaming(false);
+        if (renameVal && renameVal.trim()) {
+            let newName = renameVal.trim();
+
+            // Enforce extension
+            if (entry.name.endsWith('.excalidraw.md') && !newName.endsWith('.excalidraw.md')) {
+                newName += '.excalidraw.md';
+            } else if (entry.name.endsWith('.excalidraw') && !newName.endsWith('.excalidraw')) {
+                newName += '.excalidraw';
+            } else if (entry.name.endsWith('.md') && !newName.endsWith('.md')) {
+                newName += '.md';
+            }
+
+            // Prevent no-op
+            if (newName === entry.name) return;
+
+            // Get base path
+            const parts = entry.path.split('/');
+            parts.pop();
+            const dir = parts.join('/');
+            const newPath = `${dir}/${newName}`;
+
+            if (entry.isDirectory) {
+                alert("Renaming directories is currently not supported via UI.");
+            } else {
+                const success = await FileSystemAPI.renameFile(entry.path, newPath);
+                if (success) {
+                    useWorkspaceStore.getState().renameTab(entry.path, newPath, newName);
+                }
+            }
+        }
+    };
+
     const handleClick = async () => {
+        if (isRenaming) return;
         if (entry.isDirectory) {
             setExpanded(!expanded);
         } else {
@@ -175,45 +222,7 @@ const FileTreeItem: React.FC<{ entry: DirEntry; depth: number }> = ({ entry, dep
             {
                 id: "rename",
                 label: "Rename...",
-                action: async () => {
-                    let newName = prompt(`Rename ${entry.name} to:`,
-                        // Suggest name without extension for convenience
-                        entry.name.replace(/\.excalidraw\.md$|\.excalidraw$|\.md$/, '')
-                    );
-
-                    if (newName && newName.trim()) {
-                        newName = newName.trim();
-
-                        // Enforce extension
-                        if (entry.name.endsWith('.excalidraw.md') && !newName.endsWith('.excalidraw.md')) {
-                            newName += '.excalidraw.md';
-                        } else if (entry.name.endsWith('.excalidraw') && !newName.endsWith('.excalidraw')) {
-                            newName += '.excalidraw';
-                        } else if (entry.name.endsWith('.md') && !newName.endsWith('.md')) {
-                            newName += '.md';
-                        }
-
-                        // Prevent no-op
-                        if (newName === entry.name) return;
-
-                        // Get base path
-                        const parts = entry.path.split('/');
-                        parts.pop();
-                        const dir = parts.join('/');
-                        const newPath = `${dir}/${newName}`;
-
-                        // we need to copy over content and delete old
-                        if (entry.isDirectory) {
-                            alert("Renaming directories is currently not supported via UI.");
-                        } else {
-                            const success = await FileSystemAPI.copyFile(entry.path, newPath);
-                            if (success) {
-                                await FileSystemAPI.deleteFile(entry.path);
-                                useWorkspaceStore.getState().renameTab(entry.path, newPath, newName);
-                            }
-                        }
-                    }
-                },
+                action: initiateRename,
                 group: 'danger'
             },
             {
@@ -239,6 +248,12 @@ const FileTreeItem: React.FC<{ entry: DirEntry; depth: number }> = ({ entry, dep
         <div>
             <div
                 onClick={handleClick}
+                onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (!entry.isDirectory) {
+                        initiateRename();
+                    }
+                }}
                 onContextMenu={handleContextMenu}
                 style={{
                     display: 'flex',
@@ -250,14 +265,31 @@ const FileTreeItem: React.FC<{ entry: DirEntry; depth: number }> = ({ entry, dep
                 }}
                 className="file-explorer-item"
             >
-                {entry.isDirectory ? (
-                    expanded ? <ChevronDown size={14} style={{ marginRight: '4px', color: 'var(--text-secondary)' }} /> : <ChevronRight size={14} style={{ marginRight: '4px', color: 'var(--text-secondary)' }} />
+                <div style={{ marginRight: "6px", display: "flex", alignItems: "center", color: "var(--text-secondary)" }}>
+                    {entry.isDirectory ? (
+                        expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                    ) : (
+                        <FileText size={14} />
+                    )}
+                </div>
+                {isRenaming ? (
+                    <input
+                        autoFocus
+                        value={renameVal}
+                        onChange={e => setRenameVal(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') commitRename();
+                            if (e.key === 'Escape') setIsRenaming(false);
+                        }}
+                        style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'inherit', outline: 'none', width: '100%', padding: '2px 4px', fontSize: 'inherit' }}
+                        onClick={e => e.stopPropagation()}
+                    />
                 ) : (
-                    <File size={14} style={{ marginRight: '4px', visibility: 'hidden' }} /> // Spacer to align text
+                    <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {entry.name}
+                    </div>
                 )}
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {entry.name}
-                </span>
             </div>
             {expanded && children.map(child => (
                 <FileTreeItem key={child.path} entry={child} depth={depth + 1} />

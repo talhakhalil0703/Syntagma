@@ -137,4 +137,47 @@ export class MockFileSystem {
     async showSaveDialog(options: { title?: string, defaultPath?: string, filters?: { name: string, extensions: string[] }[] }): Promise<{ canceled: boolean; filePath?: string }> {
         return { canceled: true };
     }
+
+    async renameFile(oldPath: string, newPath: string): Promise<boolean> {
+        let success = false;
+        // Rename files
+        const filesToRename: [string, string][] = [];
+        for (const filePath of this.files.keys()) {
+            if (filePath === oldPath) {
+                filesToRename.push([filePath, newPath]);
+            } else if (filePath.startsWith(oldPath + '/')) {
+                filesToRename.push([filePath, filePath.replace(oldPath, newPath)]);
+            }
+        }
+
+        for (const [oldFilePath, newFilePath] of filesToRename) {
+            const content = this.files.get(oldFilePath);
+            if (content !== undefined) {
+                this.files.set(newFilePath, content);
+                this.files.delete(oldFilePath);
+                success = true;
+            }
+        }
+
+        // Rename directories
+        const dirsToRename: [string, string][] = [];
+        for (const dirPath of this.dirs) {
+            if (dirPath === oldPath) {
+                dirsToRename.push([dirPath, newPath]);
+            } else if (dirPath.startsWith(oldPath + '/')) {
+                dirsToRename.push([dirPath, dirPath.replace(oldPath, newPath)]);
+            }
+        }
+
+        for (const [oldDirPath, newDirPath] of dirsToRename) {
+            this.dirs.add(newDirPath);
+            this.dirs.delete(oldDirPath);
+            success = true;
+        }
+
+        if (success) {
+            this.save();
+        }
+        return success;
+    }
 }
