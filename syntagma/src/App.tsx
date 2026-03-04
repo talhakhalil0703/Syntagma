@@ -32,13 +32,13 @@ import {
   X,
   Plus,
   Calendar,
-  Pin
+  Pin,
+  Code
 } from "lucide-react";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsModal } from "./components/SettingsModal";
 import { SidebarContainer } from "./components/SidebarContainer";
 import { Editor } from "./components/Editor";
-import { MarkdownRenderer } from "./components/markdown/MarkdownRenderer";
 import { useSettingsStore } from "./store/settingsStore";
 import { registry } from "./plugins/PluginRegistry";
 import FileExplorerPlugin from "./plugins/core/explorer/FileExplorerPlugin";
@@ -457,9 +457,9 @@ function App() {
                   <button
                     className="icon-btn"
                     onClick={toggleViewMode}
-                    title={viewMode === "edit" ? "Switch to Reading View" : "Switch to Editing View"}
+                    title={viewMode === "source" ? "Switch to Live Preview" : "Switch to Source Mode"}
                   >
-                    {viewMode === "edit" ? <PenTool size={18} /> : <Bookmark size={18} />}
+                    {viewMode === "source" ? <PenTool size={18} /> : <Code size={18} />}
                   </button>
                   <button
                     className="icon-btn"
@@ -501,13 +501,11 @@ function App() {
                   <BrowserView />
                 ) : activeTabId?.endsWith(".excalidraw") ? (
                   <ExcalidrawView fileContent={fileContent} onChange={handleEditorChange} />
-                ) : viewMode === "edit" ? (
+                ) : (
                   <Editor
                     value={fileContent}
                     onChange={handleEditorChange}
                   />
-                ) : (
-                  <MarkdownRenderer content={fileContent} />
                 )}
               </div>
             </main>

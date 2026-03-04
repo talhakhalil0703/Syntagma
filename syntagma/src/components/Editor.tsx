@@ -6,6 +6,7 @@ import { EditorView } from "@codemirror/view";
 import { useThemeStore } from "../store/themeStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { FileSystemAPI } from "../utils/fs";
+import { livePreviewExtension } from "./editor/LivePreviewExtension";
 
 interface EditorProps {
   value?: string;
@@ -18,6 +19,7 @@ export const Editor: React.FC<EditorProps> = ({
 }) => {
   const { mode, systemDark } = useThemeStore();
   const isDark = mode === "dark" || (mode === "system" && systemDark);
+  const viewMode = useWorkspaceStore((state) => state.viewMode);
 
   // Extend the default theme to blend flawlessly into our background
   const themeExtensions = useMemo(
@@ -74,17 +76,20 @@ export const Editor: React.FC<EditorProps> = ({
     [isDark],
   );
 
-  const extensions = useMemo(
-    () => [
+  const extensions = useMemo(() => {
+    const exts = [
       markdown({
         base: markdownLanguage,
         codeLanguages: languages,
       }),
       EditorView.lineWrapping,
       ...themeExtensions,
-    ],
-    [themeExtensions],
-  );
+    ];
+    if (viewMode === "live") {
+      exts.push(livePreviewExtension());
+    }
+    return exts;
+  }, [themeExtensions, viewMode]);
 
   const dropExtension = useMemo(() => {
     return EditorView.domEventHandlers({

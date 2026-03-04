@@ -29,7 +29,7 @@ interface WorkspaceState {
   // Tab State
   openTabs: TabItem[];
   activeTabId: string | null;
-  viewMode: "edit" | "read";
+  viewMode: "source" | "live";
 
   // Actions
   toggleLeftSidebar: () => void;
@@ -96,7 +96,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   openTabs: [{ id: "welcome", title: "Untitled Note.md" }],
   activeTabId: "welcome",
-  viewMode: "edit",
+  viewMode: "live",
 
   toggleLeftSidebar: () => {
     set((state) => ({ leftSidebarOpen: !state.leftSidebarOpen }));
@@ -193,7 +193,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   toggleViewMode: () => {
     set((state) => ({
-      viewMode: state.viewMode === "edit" ? "read" : "edit"
+      viewMode: state.viewMode === "source" ? "live" : "source"
     }));
     useWorkspaceStore.getState().saveWorkspaceState();
   },
@@ -244,7 +244,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
           activeRightPaneId: parsed.activeRightPaneId || initialRightPanes[0]?.id || null,
           openTabs: parsed.openTabs || [{ id: "welcome", title: "Untitled Note.md" }],
           activeTabId: parsed.activeTabId || "welcome",
-          viewMode: parsed.viewMode || "edit",
+          viewMode: parsed.viewMode || "live",
         });
       } catch (e) {
         console.error("Failed to parse workspace config", e);

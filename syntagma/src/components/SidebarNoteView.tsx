@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { FileSystemAPI } from "../utils/fs";
 import { Editor } from "./Editor";
-import { MarkdownRenderer } from "./markdown/MarkdownRenderer";
-import { useWorkspaceStore } from "../store/workspaceStore";
 
 export const SidebarNoteView: React.FC<{ noteId: string }> = ({ noteId }) => {
     const [content, setContent] = useState<string>("");
-    const viewMode = useWorkspaceStore(state => state.viewMode);
 
     useEffect(() => {
         let isMounted = true;
@@ -43,13 +40,7 @@ export const SidebarNoteView: React.FC<{ noteId: string }> = ({ noteId }) => {
 
     return (
         <div style={{ height: "100%", overflow: "auto" }}>
-            {viewMode === "edit" ? (
-                <Editor value={content} onChange={handleChange} />
-            ) : (
-                <div style={{ padding: "16px" }}>
-                    <MarkdownRenderer content={content} />
-                </div>
-            )}
+            <Editor value={content} onChange={handleChange} />
         </div>
     );
 };
