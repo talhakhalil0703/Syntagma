@@ -77,6 +77,7 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
     const isDark = mode === "dark" || (mode === "system" && systemDark);
 
     const [fileContent, setFileContent] = useState<string>("");
+    const [loadedContentId, setLoadedContentId] = useState<string | null>(null);
     const { openMenu } = useContextMenuStore();
 
     const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -88,20 +89,34 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
     // Sync File Content with Active Tab locally for this group
     useEffect(() => {
         let isMounted = true;
+        setLoadedContentId(null);
+
         const loadContent = async () => {
             if (!activeTabId) {
-                if (isMounted) setFileContent("");
+                if (isMounted) {
+                    setFileContent("");
+                    setLoadedContentId(null);
+                }
                 return;
             }
             if (activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) {
-                if (isMounted) setFileContent(activeTabId === "welcome" ? "# Welcome to Syntagma\n\nYour new local-first, blazing fast markdown editor.\n\nStart typing here..." : "");
+                if (isMounted) {
+                    setFileContent(activeTabId === "welcome" ? "# Welcome to Syntagma\n\nYour new local-first, blazing fast markdown editor.\n\nStart typing here..." : "");
+                    setLoadedContentId(activeTabId);
+                }
                 return;
             }
             try {
                 const content = await FileSystemAPI.readFile(activeTabId);
-                if (isMounted) setFileContent(content || "");
+                if (isMounted) {
+                    setFileContent(content || "");
+                    setLoadedContentId(activeTabId);
+                }
             } catch (e) {
-                if (isMounted) setFileContent("");
+                if (isMounted) {
+                    setFileContent("");
+                    setLoadedContentId(activeTabId);
+                }
             }
         };
         loadContent();
@@ -109,17 +124,32 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
     }, [activeTabId]);
 
     const handleEditorChange = (val: string) => {
+        console.log("handleEditorChange triggered with length:", val.length);
         setFileContent(val);
         if (!activeTabId || activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) return;
 
-        if ((window as any).saveTimeoutGroup) {
-            clearTimeout((window as any).saveTimeoutGroup);
+        if (!(window as any).saveTimeouts) {
+            (window as any).saveTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
         }
-        (window as any).saveTimeoutGroup = setTimeout(async () => {
+
+        const saveTimeouts = (window as any).saveTimeouts;
+
+        if (saveTimeouts.has(activeTabId)) {
+            clearTimeout(saveTimeouts.get(activeTabId));
+        }
+
+        const timeoutId = setTimeout(async () => {
             try {
+                console.log(`Attempting to save ${activeTabId}...`);
                 await FileSystemAPI.writeFile(activeTabId, val);
-            } catch (e) { }
+                console.log(`Saved ${activeTabId} successfully.`);
+                saveTimeouts.delete(activeTabId);
+            } catch (e) {
+                console.error(`Failed to save ${activeTabId}:`, e);
+            }
         }, 1000);
+
+        saveTimeouts.set(activeTabId, timeoutId);
     };
 
     const handleTabContextMenu = (e: React.MouseEvent, tab: any) => {
@@ -296,10 +326,12 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
 
             {/* Editor Content */}
             <div style={{ flexGrow: 1, width: "100%", height: "100%", overflow: "auto" }}>
-                {activeTabId?.startsWith("browser-") ? (
+                {loadedContentId !== activeTabId && activeTabId ? (
+                    <div style={{ padding: '24px', color: 'var(--text-secondary)' }}>Loading content...</div>
+                ) : activeTabId?.startsWith("browser-") ? (
                     <BrowserView /> // Note: browser view uses global activeTabId usually, might need adjustment later
                 ) : activeTabId?.endsWith(".excalidraw") ? (
-                    <ExcalidrawView fileContent={fileContent} onChange={handleEditorChange} />
+                    <ExcalidrawView key={activeTabId} fileContent={fileContent} onChange={handleEditorChange} />
                 ) : (
                     <Editor
                         value={fileContent}
