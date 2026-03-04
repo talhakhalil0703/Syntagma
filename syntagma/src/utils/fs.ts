@@ -47,4 +47,55 @@ const isElectron = () => {
     return typeof window !== 'undefined' && (window as any).require && (window as any).require('electron');
 };
 
-export const FileSystemAPI: FileSystemProvider = isElectron() ? new ElectronFileSystem() : new MockFileSystem();
+class FileSystemEventTracker implements FileSystemProvider {
+    inner: FileSystemProvider;
+
+    constructor(inner: FileSystemProvider) {
+        this.inner = inner;
+    }
+
+    private emit() {
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('filesystem-changed'));
+    }
+
+    async writeFile(filePath: string, content: string): Promise<boolean> {
+        const res = await this.inner.writeFile(filePath, content);
+        if (res) this.emit();
+        return res;
+    }
+
+    async mkdir(dirPath: string): Promise<boolean> {
+        const res = await this.inner.mkdir(dirPath);
+        if (res) this.emit();
+        return res;
+    }
+
+    async copyFile(source: string, destination: string): Promise<boolean> {
+        const res = await this.inner.copyFile(source, destination);
+        if (res) this.emit();
+        return res;
+    }
+
+    async deleteFile(filePath: string): Promise<boolean> {
+        const res = await this.inner.deleteFile(filePath);
+        if (res) this.emit();
+        return res;
+    }
+
+    // Pass through methods
+    readFile(filePath: string) { return this.inner.readFile(filePath); }
+    readImageBase64(filePath: string) { return this.inner.readImageBase64(filePath); }
+    getVaultPath() { return this.inner.getVaultPath(); }
+    selectVaultDirectory() { return this.inner.selectVaultDirectory(); }
+    readDir(dirPath: string) { return this.inner.readDir(dirPath); }
+    readDirRecursive(dirPath: string) { return this.inner.readDirRecursive(dirPath); }
+    searchVault(vaultPath: string, query: string) { return this.inner.searchVault(vaultPath, query); }
+    executeGitCommand(v: string, c: string) { return this.inner.executeGitCommand(v, c); }
+    stat(targetPath: string) { return this.inner.stat(targetPath); }
+    printToPDF(html: string, path: string) { return this.inner.printToPDF(html, path); }
+    showSaveDialog(opts: any) { return this.inner.showSaveDialog(opts); }
+}
+
+export const FileSystemAPI: FileSystemProvider = new FileSystemEventTracker(
+    isElectron() ? new ElectronFileSystem() : new MockFileSystem()
+);

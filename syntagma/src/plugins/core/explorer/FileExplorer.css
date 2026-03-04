@@ -1,0 +1,38 @@
+.file-explorer-item {
+    transition: background-color 0.1s ease;
+    border-radius: 4px;
+    margin: 0 8px;
+    /* Slight inset for the hover border radius */
+}
+
+.file-explorer-item:hover {
+    background-color: var(--bg-tertiary, #2a2a2a);
+}
+
+/* File explorer top bar styling */
+.explorer-top-bar {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    gap: 4px;
+    /* Optional slight bottom border */
+    /* border-bottom: 1px solid var(--bg-border); */
+}
+
+.explorer-top-bar .icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary, #808080);
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.explorer-top-bar .icon-btn:hover {
+    background-color: var(--bg-tertiary, #2a2a2a);
+    color: var(--text-primary, #ffffff);
+}

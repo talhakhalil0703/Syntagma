@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { type SplitNode, useWorkspaceStore } from "../store/workspaceStore";
 import { useThemeStore } from "../store/themeStore";
 import { PenTool, X, Plus, Pin, Code, Sun, Moon, PanelLeftOpen, PanelRightOpen } from "lucide-react";
@@ -123,10 +123,19 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
         return () => { isMounted = false; };
     }, [activeTabId]);
 
-    const handleEditorChange = (val: string) => {
-        console.log("handleEditorChange triggered with length:", val.length);
-        setFileContent(val);
-        if (!activeTabId || activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) return;
+    // We need a ref to the current activeTabId to check if delayed events belong to the visible tab
+    const activeTabIdRef = useRef(activeTabId);
+    useEffect(() => {
+        activeTabIdRef.current = activeTabId;
+    }, [activeTabId]);
+
+    const handleEditorChange = (val: string, sourceTabId: string) => {
+        // Only update the local UI state if the change came from the currently visible tab
+        if (sourceTabId === activeTabIdRef.current) {
+            setFileContent(val);
+        }
+
+        if (!sourceTabId || sourceTabId === "welcome" || sourceTabId.startsWith("tab-") || sourceTabId.startsWith("browser-")) return;
 
         if (!(window as any).saveTimeouts) {
             (window as any).saveTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
@@ -134,22 +143,19 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
 
         const saveTimeouts = (window as any).saveTimeouts;
 
-        if (saveTimeouts.has(activeTabId)) {
-            clearTimeout(saveTimeouts.get(activeTabId));
+        if (saveTimeouts.has(sourceTabId)) {
+            clearTimeout(saveTimeouts.get(sourceTabId));
         }
 
         const timeoutId = setTimeout(async () => {
             try {
-                console.log(`Attempting to save ${activeTabId}...`);
-                await FileSystemAPI.writeFile(activeTabId, val);
-                console.log(`Saved ${activeTabId} successfully.`);
-                saveTimeouts.delete(activeTabId);
+                await FileSystemAPI.writeFile(sourceTabId, val);
+                saveTimeouts.delete(sourceTabId);
             } catch (e) {
-                console.error(`Failed to save ${activeTabId}:`, e);
+                console.error(`Failed to save ${sourceTabId}:`, e);
             }
         }, 1000);
-
-        saveTimeouts.set(activeTabId, timeoutId);
+        saveTimeouts.set(sourceTabId, timeoutId);
     };
 
     const handleTabContextMenu = (e: React.MouseEvent, tab: any) => {
@@ -330,12 +336,12 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
                     <div style={{ padding: '24px', color: 'var(--text-secondary)' }}>Loading content...</div>
                 ) : activeTabId?.startsWith("browser-") ? (
                     <BrowserView /> // Note: browser view uses global activeTabId usually, might need adjustment later
-                ) : activeTabId?.endsWith(".excalidraw") ? (
-                    <ExcalidrawView key={activeTabId} fileContent={fileContent} onChange={handleEditorChange} />
+                ) : (activeTabId?.endsWith(".excalidraw") || activeTabId?.endsWith(".excalidraw.md")) ? (
+                    <ExcalidrawView key={activeTabId} fileId={activeTabId} fileContent={fileContent} onChange={(val) => handleEditorChange(val, activeTabId)} />
                 ) : (
                     <Editor
                         value={fileContent}
-                        onChange={handleEditorChange}
+                        onChange={(val) => handleEditorChange(val, activeTabId!)}
                     />
                 )}
             </div>

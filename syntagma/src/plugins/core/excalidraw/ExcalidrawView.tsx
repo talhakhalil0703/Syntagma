@@ -5,9 +5,10 @@ import { useThemeStore } from "../../../store/themeStore";
 interface ExcalidrawViewProps {
     fileContent: string;
     onChange: (val: string) => void;
+    fileId?: string;
 }
 
-export const ExcalidrawView: React.FC<ExcalidrawViewProps> = ({ fileContent, onChange }) => {
+export const ExcalidrawView: React.FC<ExcalidrawViewProps> = ({ fileContent, onChange, fileId }) => {
     const { mode, systemDark } = useThemeStore();
     const isDark = mode === "dark" || (mode === "system" && systemDark);
 
@@ -17,9 +18,21 @@ export const ExcalidrawView: React.FC<ExcalidrawViewProps> = ({ fileContent, onC
     const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
     const lastSavedDataRef = useRef<string | null>(null);
 
+    // Force a fresh mount key whenever the content ID changes drastically
+    const [mountKey, setMountKey] = useState(Date.now());
+    const lastFileIdRef = useRef(fileId);
+
     useEffect(() => {
         onChangeRef.current = onChange;
     }, [onChange]);
+
+    useEffect(() => {
+        if (fileId !== lastFileIdRef.current) {
+            lastFileIdRef.current = fileId;
+            setExcalidrawAPI(null);
+            setMountKey(Date.now());
+        }
+    }, [fileId]);
 
     useEffect(() => {
         try {
@@ -41,10 +54,10 @@ export const ExcalidrawView: React.FC<ExcalidrawViewProps> = ({ fileContent, onC
                 excalidrawAPI.updateScene({ elements: [], appState: {} });
             }
         }
-    }, [fileContent, excalidrawAPI]);
+    }, [fileContent, excalidrawAPI, mountKey]);
 
     const handleChange = React.useCallback((elements: readonly any[], appState: any, files: any) => {
-        // Stringifying the AST vector array is expensive. Throttle passing it to App.tsx
+        // ... (keep debounce same) ...
         if (debounceTimer.current) clearTimeout(debounceTimer.current);
         debounceTimer.current = setTimeout(() => {
             const payload = JSON.stringify({
@@ -83,6 +96,7 @@ export const ExcalidrawView: React.FC<ExcalidrawViewProps> = ({ fileContent, onC
     return (
         <div style={{ height: "100%", width: "100%" }}>
             <Excalidraw
+                key={`${mountKey}-${isDark ? "dark" : "light"}`}
                 excalidrawAPI={(api) => setExcalidrawAPI(api)}
                 initialData={initialData}
                 onChange={handleChange}

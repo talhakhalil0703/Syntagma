@@ -1,32 +1,35 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { FileSystemAPI, type DirEntry } from "../../../utils/fs";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
-import { ChevronRight, ChevronDown, File, FolderOpen } from "lucide-react";
+import { ChevronRight, ChevronDown, File, FolderOpen, FileEdit, FolderPlus, ArrowDownUp, Maximize, ChevronsDownUp } from "lucide-react";
 import { useContextMenuStore } from "../../../store/contextMenuStore";
+import './FileExplorer.css';
 
 export const FileExplorerView: React.FC = () => {
-    const { vaultPath, openVault } = useWorkspaceStore();
+    const { vaultPath, openVault, openTab } = useWorkspaceStore();
     const [entries, setEntries] = useState<DirEntry[]>([]);
 
-    useEffect(() => {
-        const loadVault = async () => {
-            if (vaultPath) {
-                const items = await FileSystemAPI.readDir(vaultPath);
-                // Filter out hidden files like .syntagma or .git
-                const visible = items.filter(i => !i.name.startsWith('.'));
-                // Sort directories first, then alphabetical
-                visible.sort((a, b) => {
-                    if (a.isDirectory && !b.isDirectory) return -1;
-                    if (!a.isDirectory && b.isDirectory) return 1;
-                    return a.name.localeCompare(b.name);
-                });
-                setEntries(visible);
-            } else {
-                setEntries([]);
-            }
-        };
-        loadVault();
+    const loadVault = useCallback(async () => {
+        if (vaultPath) {
+            const items = await FileSystemAPI.readDir(vaultPath);
+            const visible = items.filter(i => !i.name.startsWith('.'));
+            visible.sort((a, b) => {
+                if (a.isDirectory && !b.isDirectory) return -1;
+                if (!a.isDirectory && b.isDirectory) return 1;
+                return a.name.localeCompare(b.name);
+            });
+            setEntries(visible);
+        } else {
+            setEntries([]);
+        }
     }, [vaultPath]);
+
+    useEffect(() => {
+        loadVault();
+        const handleFsChange = () => loadVault();
+        window.addEventListener('filesystem-changed', handleFsChange);
+        return () => window.removeEventListener('filesystem-changed', handleFsChange);
+    }, [loadVault]);
 
     if (!vaultPath) {
         return (
@@ -51,11 +54,51 @@ export const FileExplorerView: React.FC = () => {
         );
     }
 
+    const handleNewNote = async () => {
+        let name = prompt("Enter new note name (e.g., 'My Note' or 'My Note.md'):");
+        if (!name) return;
+        name = name.trim();
+        if (!name) return;
+        if (!name.endsWith('.md')) name += '.md';
+
+        await FileSystemAPI.writeFile(`${vaultPath}/${name}`, "");
+        openTab({ id: `${vaultPath}/${name}`, title: name });
+    };
+
+    const handleNewFolder = async () => {
+        let name = prompt("Enter new folder name:");
+        if (!name) return;
+        name = name.trim();
+        if (!name) return;
+
+        await FileSystemAPI.mkdir(`${vaultPath}/${name}`);
+    };
+
     return (
-        <div style={{ padding: "0", userSelect: "none" }}>
-            {entries.map(entry => (
-                <FileTreeItem key={entry.path} entry={entry} depth={0} />
-            ))}
+        <div style={{ display: "flex", flexDirection: "column", height: "100%", userSelect: "none" }}>
+            <div className="explorer-top-bar">
+                <button className="icon-btn" onClick={handleNewNote} title="New Note">
+                    <FileEdit size={16} />
+                </button>
+                <button className="icon-btn" onClick={handleNewFolder} title="New Folder">
+                    <FolderPlus size={16} />
+                </button>
+                <button className="icon-btn" title="Change sort order (Not implemented)">
+                    <ArrowDownUp size={16} />
+                </button>
+                <div style={{ flex: 1 }} />
+                <button className="icon-btn" title="Expand active file (Not implemented)">
+                    <Maximize size={16} />
+                </button>
+                <button className="icon-btn" onClick={() => window.dispatchEvent(new CustomEvent('collapse-all-explorer'))} title="Collapse all">
+                    <ChevronsDownUp size={16} />
+                </button>
+            </div>
+            <div style={{ padding: "8px 0", flex: 1, overflowY: "auto" }}>
+                {entries.map(entry => (
+                    <FileTreeItem key={entry.path} entry={entry} depth={0} />
+                ))}
+            </div>
         </div>
     );
 };
@@ -65,21 +108,39 @@ const FileTreeItem: React.FC<{ entry: DirEntry; depth: number }> = ({ entry, dep
     const [children, setChildren] = useState<DirEntry[]>([]);
     const { openTab } = useWorkspaceStore();
 
+    const loadChildren = useCallback(async () => {
+        if (entry.isDirectory) {
+            const items = await FileSystemAPI.readDir(entry.path);
+            const visible = items.filter(i => !i.name.startsWith('.')).sort((a, b) => {
+                if (a.isDirectory && !b.isDirectory) return -1;
+                if (!a.isDirectory && b.isDirectory) return 1;
+                return a.name.localeCompare(b.name);
+            });
+            setChildren(visible);
+        }
+    }, [entry]);
+
+    useEffect(() => {
+        if (expanded) loadChildren();
+    }, [expanded, loadChildren]);
+
+    useEffect(() => {
+        const handleCollapse = () => setExpanded(false);
+        const handleFsChange = () => { if (expanded) loadChildren(); };
+        window.addEventListener('collapse-all-explorer', handleCollapse);
+        window.addEventListener('filesystem-changed', handleFsChange);
+        return () => {
+            window.removeEventListener('collapse-all-explorer', handleCollapse);
+            window.removeEventListener('filesystem-changed', handleFsChange);
+        };
+    }, [expanded, loadChildren]);
+
     const handleClick = async () => {
         if (entry.isDirectory) {
-            if (!expanded && children.length === 0) {
-                const items = await FileSystemAPI.readDir(entry.path);
-                const visible = items.filter(i => !i.name.startsWith('.')).sort((a, b) => {
-                    if (a.isDirectory && !b.isDirectory) return -1;
-                    if (!a.isDirectory && b.isDirectory) return 1;
-                    return a.name.localeCompare(b.name);
-                });
-                setChildren(visible);
-            }
             setExpanded(!expanded);
         } else {
             // It's a file, replace currently active tab natively in WorkspaceStore's openTab
-            if (entry.name.endsWith('.md') || entry.name.endsWith('.excalidraw')) {
+            if (entry.name.endsWith('.md') || entry.name.endsWith('.excalidraw') || entry.name.endsWith('.excalidraw.md')) {
                 openTab({ id: entry.path, title: entry.name });
             }
         }
@@ -111,8 +172,64 @@ const FileTreeItem: React.FC<{ entry: DirEntry; depth: number }> = ({ entry, dep
             { id: "open-default", label: "Open in default app", action: () => console.log('system open'), group: 'system' },
             { id: "reveal", label: "Reveal in Finder", action: () => console.log('reveal shell'), group: 'system' },
 
-            { id: "rename", label: "Rename...", action: () => console.log('Rename requested'), group: 'danger' },
-            { id: "delete", label: "Delete", action: () => console.log('Delete requested'), group: 'danger' },
+            {
+                id: "rename",
+                label: "Rename...",
+                action: async () => {
+                    let newName = prompt(`Rename ${entry.name} to:`,
+                        // Suggest name without extension for convenience
+                        entry.name.replace(/\.excalidraw\.md$|\.excalidraw$|\.md$/, '')
+                    );
+
+                    if (newName && newName.trim()) {
+                        newName = newName.trim();
+
+                        // Enforce extension
+                        if (entry.name.endsWith('.excalidraw.md') && !newName.endsWith('.excalidraw.md')) {
+                            newName += '.excalidraw.md';
+                        } else if (entry.name.endsWith('.excalidraw') && !newName.endsWith('.excalidraw')) {
+                            newName += '.excalidraw';
+                        } else if (entry.name.endsWith('.md') && !newName.endsWith('.md')) {
+                            newName += '.md';
+                        }
+
+                        // Prevent no-op
+                        if (newName === entry.name) return;
+
+                        // Get base path
+                        const parts = entry.path.split('/');
+                        parts.pop();
+                        const dir = parts.join('/');
+                        const newPath = `${dir}/${newName}`;
+
+                        // we need to copy over content and delete old
+                        if (entry.isDirectory) {
+                            alert("Renaming directories is currently not supported via UI.");
+                        } else {
+                            const success = await FileSystemAPI.copyFile(entry.path, newPath);
+                            if (success) {
+                                await FileSystemAPI.deleteFile(entry.path);
+                                useWorkspaceStore.getState().renameTab(entry.path, newPath, newName);
+                            }
+                        }
+                    }
+                },
+                group: 'danger'
+            },
+            {
+                id: "delete",
+                label: "Delete",
+                action: async () => {
+                    if (confirm(`Are you sure you want to permanently delete ${entry.name}?`)) {
+                        if (entry.isDirectory) {
+                            alert("Deleting directories is currently not supported via UI.");
+                        } else {
+                            await FileSystemAPI.deleteFile(entry.path);
+                        }
+                    }
+                },
+                group: 'danger'
+            },
         ], { path: entry.path }, "explorer");
     };
 
