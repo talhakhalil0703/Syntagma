@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useWorkspaceStore } from '../../store/workspaceStore';
+import { useWorkspaceStore, type SplitNode } from '../../store/workspaceStore';
 import { FileSystemAPI } from '../../utils/fs';
 
 // Mock the FileSystem wrapper
@@ -15,21 +15,42 @@ describe('workspaceStore', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+
+        const fallbackRoot: SplitNode = {
+            id: 'mock-root',
+            type: 'leaf',
+            group: {
+                id: 'mock-group',
+                tabs: [{ id: "welcome", title: "Untitled Note.md" }],
+                activeTabId: "welcome"
+            }
+        };
+
         useWorkspaceStore.setState({
             vaultPath: '/mock/vault',
             leftSidebarOpen: true,
             rightSidebarOpen: true,
-            openTabs: [{ id: "welcome", title: "Untitled Note.md" }],
-            activeTabId: "welcome"
+            rootSplit: fallbackRoot,
+            activeGroupId: 'mock-group'
         });
     });
 
     it('loadWorkspaceState restores tabs and layout', async () => {
+        const mockRoot: SplitNode = {
+            id: 'mock-root-loaded',
+            type: 'leaf',
+            group: {
+                id: 'mock-group-loaded',
+                tabs: [{ id: "t1", title: "Note 1" }, { id: "t2", title: "Note 2" }],
+                activeTabId: "t2"
+            }
+        };
+
         const mockJson = JSON.stringify({
             leftSidebarOpen: false,
             rightSidebarOpen: true,
-            openTabs: [{ id: "t1", title: "Note 1" }, { id: "t2", title: "Note 2" }],
-            activeTabId: "t2"
+            rootSplit: mockRoot,
+            activeGroupId: 'mock-group-loaded'
         });
 
         useWorkspaceStore.setState({ vaultPath: '/mock/vault' });
@@ -40,8 +61,8 @@ describe('workspaceStore', () => {
         const state = useWorkspaceStore.getState();
         expect(state.leftSidebarOpen).toBe(false);
         expect(state.rightSidebarOpen).toBe(true);
-        expect(state.openTabs.length).toBe(2);
-        expect(state.activeTabId).toBe("t2");
+        expect(state.rootSplit.group?.tabs.length).toBe(2);
+        expect(state.rootSplit.group?.activeTabId).toBe("t2");
     });
 
     it('saveWorkspaceState writes current state to json', async () => {
@@ -50,17 +71,33 @@ describe('workspaceStore', () => {
 
         useWorkspaceStore.setState({
             leftSidebarOpen: false,
-            activeTabId: "test-note"
+            activeGroupId: "test-group",
+            rootSplit: {
+                id: 'mock-root-saved',
+                type: 'leaf',
+                group: {
+                    id: 'test-group',
+                    tabs: [{ id: "welcome", title: "Untitled Note.md" }],
+                    activeTabId: "test-note"
+                }
+            }
         });
 
         await useWorkspaceStore.getState().saveWorkspaceState();
 
+        const state = useWorkspaceStore.getState();
+
         const expectedPayload = JSON.stringify({
-            leftSidebarOpen: false,
-            rightSidebarOpen: true,
-            openTabs: [{ id: "welcome", title: "Untitled Note.md" }],
-            activeTabId: "test-note",
-            viewMode: "edit"
+            leftSidebarOpen: state.leftSidebarOpen,
+            rightSidebarOpen: state.rightSidebarOpen,
+            leftSidebarWidth: state.leftSidebarWidth,
+            rightSidebarWidth: state.rightSidebarWidth,
+            leftPanes: state.leftPanes,
+            rightPaneGroups: state.rightPaneGroups,
+            activeLeftPaneId: state.activeLeftPaneId,
+            rootSplit: state.rootSplit,
+            activeGroupId: state.activeGroupId,
+            viewMode: state.viewMode,
         }, null, 2);
 
         expect(FileSystemAPI.writeFile).toHaveBeenCalledWith('/mock/vault/.syntagma/workspace.json', expectedPayload);
@@ -70,9 +107,9 @@ describe('workspaceStore', () => {
         useWorkspaceStore.setState({ vaultPath: '/mock/vault' });
         vi.mocked(FileSystemAPI.writeFile).mockResolvedValue(true);
 
-        useWorkspaceStore.getState().setActiveTab('new-tab');
+        useWorkspaceStore.getState().setActiveTab('new-tab', 'mock-group');
 
-        expect(useWorkspaceStore.getState().activeTabId).toBe('new-tab');
+        expect(useWorkspaceStore.getState().rootSplit.group?.activeTabId).toBe('new-tab');
 
         // allow microtasks to flush
         await new Promise((r) => setTimeout(r, 0));

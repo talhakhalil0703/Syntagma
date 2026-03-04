@@ -22,20 +22,39 @@ export default class BookmarksPlugin extends Plugin {
             id: "bookmarks:toggle-current",
             name: "Bookmark: Toggle active file",
             callback: () => {
-                const { activeTabId, openTabs } = useWorkspaceStore.getState();
-                if (!activeTabId) return;
+                const workspaceStore = useWorkspaceStore.getState();
+                let activeFileId: string | null = null;
+                let activeFileTitle: string | null = null;
 
-                const activeTab = openTabs.find(t => t.id === activeTabId);
-                if (!activeTab) return;
+                if (workspaceStore.activeGroupId) {
+                    const findGroup = (node: any): any => {
+                        if (node.type === "leaf" && node.group?.id === workspaceStore.activeGroupId) return node.group;
+                        if (node.children) {
+                            for (const child of node.children) {
+                                const found = findGroup(child);
+                                if (found) return found;
+                            }
+                        }
+                        return null;
+                    };
+                    const group = findGroup(workspaceStore.rootSplit);
+                    if (group && group.activeTabId) {
+                        activeFileId = group.activeTabId;
+                        const tab = group.tabs.find((t: any) => t.id === activeFileId);
+                        if (tab) activeFileTitle = tab.title;
+                    }
+                }
+
+                if (!activeFileId || !activeFileTitle) return;
 
                 const { isBookmarked, addBookmark, removeBookmark } = useBookmarksStore.getState();
 
-                if (isBookmarked(activeTab.id)) {
-                    removeBookmark(activeTab.id);
-                    console.log(`Removed bookmark: ${activeTab.title}`);
+                if (isBookmarked(activeFileId)) {
+                    removeBookmark(activeFileId);
+                    console.log(`Removed bookmark: ${activeFileTitle}`);
                 } else {
-                    addBookmark(activeTab.id, activeTab.title);
-                    console.log(`Added bookmark: ${activeTab.title}`);
+                    addBookmark(activeFileId, activeFileTitle);
+                    console.log(`Added bookmark: ${activeFileTitle}`);
                 }
             }
         });

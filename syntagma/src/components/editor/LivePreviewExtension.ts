@@ -15,6 +15,97 @@ import { useVaultIndexStore } from "../../store/vaultIndexStore";
 // Hide decoration for syntax markers
 export const hideMarkDeco = Decoration.replace({});
 
+class FrontmatterWidget extends WidgetType {
+    content: string;
+    constructor(content: string) { super(); this.content = content; }
+    eq(other: FrontmatterWidget) { return this.content === other.content; }
+    toDOM() {
+        const wrap = document.createElement("div");
+        wrap.className = "cm-frontmatter-widget";
+
+        const heading = document.createElement("div");
+        heading.className = "cm-frontmatter-heading";
+        heading.innerText = "Properties";
+        wrap.appendChild(heading);
+
+        const lines = this.content.split('\n').filter(l => l.trim().length > 0 && !l.startsWith('---'));
+        lines.forEach(line => {
+            const idx = line.indexOf(':');
+            if (idx !== -1) {
+                const k = line.slice(0, idx).trim();
+                const v = line.slice(idx + 1).trim();
+                const row = document.createElement("div");
+                row.className = "cm-frontmatter-row";
+                const kEl = document.createElement("div");
+                kEl.className = "cm-frontmatter-key";
+                kEl.innerText = k;
+                const vEl = document.createElement("div");
+                vEl.className = "cm-frontmatter-value";
+                vEl.innerText = v;
+                row.appendChild(kEl);
+                row.appendChild(vEl);
+                wrap.appendChild(row);
+            }
+        });
+        return wrap;
+    }
+}
+
+class CalloutIconWidget extends WidgetType {
+    type: string;
+    title: string;
+    constructor(type: string, title: string) { super(); this.type = type; this.title = title; }
+    eq(other: CalloutIconWidget) { return this.type === other.type && this.title === other.title; }
+    toDOM() {
+        const wrap = document.createElement("div");
+        wrap.className = "cm-callout-header";
+
+        const icon = document.createElement("span");
+        icon.className = "cm-callout-icon";
+        // Simple map for icons
+        let iconHtml = "ℹ️";
+        if (this.type === "todo" || this.type === "success") iconHtml = "✅";
+        else if (this.type === "warning" || this.type === "attention") iconHtml = "⚠️";
+        else if (this.type === "error" || this.type === "danger" || this.type === "bug") iconHtml = "❌";
+        else if (this.type === "note") iconHtml = "📝";
+        else if (this.type === "tip") iconHtml = "💡";
+        else if (this.type === "question") iconHtml = "❓";
+        else if (this.type === "quote") iconHtml = "💬";
+        icon.innerText = iconHtml;
+
+        const titleEl = document.createElement("span");
+        titleEl.className = "cm-callout-title";
+        titleEl.innerText = this.title;
+
+        wrap.appendChild(icon);
+        wrap.appendChild(titleEl);
+        return wrap;
+    }
+}
+
+class CopyButtonWidget extends WidgetType {
+    textToCopy: string;
+    constructor(textToCopy: string) { super(); this.textToCopy = textToCopy; }
+    eq(other: CopyButtonWidget) { return this.textToCopy === other.textToCopy; }
+    toDOM() {
+        const btn = document.createElement("button");
+        btn.className = "cm-codeblock-copy-btn";
+        btn.innerText = "Copy";
+        btn.onclick = () => {
+            navigator.clipboard.writeText(this.textToCopy).then(() => {
+                btn.innerText = "Copied!";
+                btn.style.borderColor = "var(--text-accent)";
+                setTimeout(() => {
+                    btn.innerText = "Copy";
+                    btn.style.borderColor = "var(--bg-border)";
+                }, 2000);
+            });
+        };
+        return btn;
+    }
+    ignoreEvent() { return false; }
+}
+
 class ImageWidget extends WidgetType {
     src: string;
 
@@ -74,6 +165,7 @@ export function buildDecorations(view: EditorView) {
 
     // Iterate over the visible tree
     for (let { from, to } of view.visibleRanges) {
+        // Iteration
         syntaxTree(state).iterate({
             from,
             to,
@@ -98,10 +190,49 @@ export function buildDecorations(view: EditorView) {
                 }
 
                 if (name === "Blockquote") {
-                    const lineDeco = Decoration.line({
-                        class: `cm-blockquote`,
+                    const text = state.sliceDoc(node.from, Math.min(node.to, node.from + 100));
+                    const match = text.match(/^>\s*\[!([\w-]+)\](?:(.*))?(?:\n|$)/);
+                    const calloutType = match ? match[1].toLowerCase() : null;
+                    const className = match ? `cm-callout cm-callout-${calloutType}` : `cm-blockquote`;
+
+                    const startLine = state.doc.lineAt(node.from).number;
+                    const endLine = state.doc.lineAt(node.to).number;
+                    for (let l = startLine; l <= endLine; l++) {
+                        const line = state.doc.line(l);
+                        const lineDeco = Decoration.line({ class: className });
+                        decorations.push({ from: line.from, to: line.from, deco: lineDeco, isLine: true });
+                    }
+                }
+
+                // Add background to codeblocks
+                if (name === "FencedCode" || name === "CodeBlock") {
+                    const startLine = state.doc.lineAt(node.from).number;
+                    const endLine = state.doc.lineAt(node.to).number;
+                    for (let l = startLine; l <= endLine; l++) {
+                        const line = state.doc.line(l);
+                        decorations.push({ from: line.from, to: line.from, deco: Decoration.line({ class: "cm-codeblock-line" }), isLine: true });
+                    }
+
+                    // Add copy button
+                    const codeText = state.sliceDoc(node.from, node.to);
+                    const contentMatch = codeText.match(/^```[^\n]*\n([\s\S]*?)```\n?$/);
+                    const copyText = contentMatch ? contentMatch[1] : codeText;
+
+                    decorations.push({
+                        from: node.from,
+                        to: node.from,
+                        deco: Decoration.widget({ widget: new CopyButtonWidget(copyText), side: 1 }),
+                        isLine: false
                     });
-                    decorations.push({ from: node.from, to: node.from, deco: lineDeco, isLine: true });
+                }
+
+                if (name === "ListItem") {
+                    const startLine = state.doc.lineAt(node.from).number;
+                    const endLine = state.doc.lineAt(node.to).number;
+                    for (let l = startLine; l <= endLine; l++) {
+                        const line = state.doc.line(l);
+                        decorations.push({ from: line.from, to: line.from, deco: Decoration.line({ class: "cm-list-item-line" }), isLine: true });
+                    }
                 }
 
                 // --- Syntax Hiding (when cursor is not inside the parent element) ---
@@ -111,10 +242,32 @@ export function buildDecorations(view: EditorView) {
                         name === "EmphasisMark" ||
                         name === "StrongEmphasisMark" ||
                         name === "StrikethroughMark" ||
-                        name === "CodeMark" ||
-                        name === "QuoteMark" ||
-                        name === "ListMark"
+                        name === "QuoteMark"
                     ) {
+                        // For QuoteMark inside callouts
+                        const p = node.node?.parent;
+                        if (name === "QuoteMark" && p && p.type.name === "Blockquote") {
+                            const bqText = state.sliceDoc(p.from, p.to);
+                            if (bqText.match(/^>\s*\[!([\w-]+)\]/)) {
+                                // hide the `> [!type]` entirely if it's the first line
+                                if (node.from === p.from) {
+                                    const match = bqText.match(/^>\s*\[!([\w-]+)\](.*)(?:\n|$)/);
+                                    if (match) {
+                                        // Calculate end without trailing newline
+                                        let replaceLen = match[0].length;
+                                        if (match[0].endsWith('\n')) replaceLen--;
+                                        decorations.push({
+                                            from: node.from,
+                                            to: node.from + replaceLen,
+                                            deco: Decoration.replace({ widget: new CalloutIconWidget(match[1].toLowerCase(), match[2]?.trim() || match[1]) }),
+                                            isLine: false
+                                        });
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+
                         decorations.push({ from: node.from, to: node.to, deco: hideMarkDeco, isLine: false });
                     }
                 }
@@ -133,8 +286,39 @@ export function buildDecorations(view: EditorView) {
             },
         });
 
-        // --- Regex parsing for Wikilinks and Images ---
+        // --- Multi-line parsing for Code Blocks (for full line coverage), Frontmatter, etc. ---
         const text = state.sliceDoc(from, to);
+
+        // Code block line styler (if Lezer doesn't visit empty lines in FencedCode)
+        const docText = state.doc.toString();
+        // Frontmatter
+        if (from === 0) {
+            const fmMatch = docText.match(/^---\n([\s\S]*?)\n---/);
+            if (fmMatch) {
+                const fmTo = fmMatch[0].length;
+                if (!isCursorInside(0, fmTo)) {
+                    // Add the widget on the first line only
+                    decorations.push({
+                        from: 0,
+                        to: 0,
+                        deco: Decoration.widget({ widget: new FrontmatterWidget(fmMatch[1]), side: -1 }),
+                        isLine: false
+                    });
+                    // Hide each frontmatter line individually (replace decorations can't span line breaks)
+                    const startLine = state.doc.lineAt(0).number;
+                    const endLine = state.doc.lineAt(fmTo).number;
+                    for (let l = startLine; l <= endLine; l++) {
+                        const line = state.doc.line(l);
+                        decorations.push({
+                            from: line.from,
+                            to: line.from,
+                            deco: Decoration.line({ class: "cm-frontmatter-hidden" }),
+                            isLine: true
+                        });
+                    }
+                }
+            }
+        }
 
         // ![[image]]
         const imageRegex = /!\[\[([^\]]+)\]\]/g;
@@ -196,13 +380,13 @@ const livePreviewPlugin = ViewPlugin.fromClass(
     }
 );
 
-// We define a base theme for our custom classes injected by the decorations
 const livePreviewTheme = EditorView.theme({
     ".cm-header": {
         fontWeight: "bold",
         color: "var(--text-primary)",
-        marginTop: "1.5rem",
-        marginBottom: "0.5rem",
+        paddingTop: "1.5rem",
+        paddingBottom: "0.5rem",
+        display: "inline-block",
     },
     ".cm-header-1": { fontSize: "2.2em" },
     ".cm-header-2": { fontSize: "1.8em" },
@@ -238,6 +422,120 @@ const livePreviewTheme = EditorView.theme({
     ".cm-wikilink-edit": {
         color: "var(--text-accent)",
         opacity: 0.8
+    },
+
+    // Frontmatter styling
+    ".cm-frontmatter-widget": {
+        border: "1px solid var(--bg-border)",
+        borderRadius: "8px",
+        padding: "12px",
+        margin: "12px 0",
+        backgroundColor: "var(--bg-secondary)",
+        fontFamily: "'Inter', sans-serif",
+    },
+    ".cm-frontmatter-heading": {
+        fontWeight: "bold",
+        fontSize: "0.85em",
+        color: "var(--text-secondary)",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        marginBottom: "8px",
+    },
+    ".cm-frontmatter-row": {
+        display: "flex",
+        alignItems: "center",
+        padding: "4px 0",
+        borderBottom: "1px solid var(--bg-border)",
+        "&:last-child": { borderBottom: "none" }
+    },
+    ".cm-frontmatter-key": {
+        width: "120px",
+        color: "var(--text-secondary)",
+        fontWeight: "500",
+        fontSize: "0.9em",
+    },
+    ".cm-frontmatter-value": {
+        flex: 1,
+        color: "var(--text-primary)",
+        fontSize: "0.9em",
+    },
+
+    // Callout styling
+    ".cm-callout": {
+        borderLeft: "4px solid var(--text-accent)",
+        backgroundColor: "rgba(123, 44, 191, 0.05)",
+        padding: "4px 16px",
+        margin: "0",
+        borderRadius: "0 4px 4px 0",
+    },
+    ".cm-callout-header": {
+        display: "flex",
+        alignItems: "center",
+        fontWeight: "bold",
+        fontSize: "0.95em",
+        marginBottom: "4px",
+        color: "var(--text-accent)"
+    },
+    ".cm-callout-icon": {
+        marginRight: "8px",
+    },
+    ".cm-callout-title": {
+        lineHeight: "1.2",
+    },
+
+    // Specific Callout Types
+    ".cm-callout-info": { borderLeftColor: "#3a86ff", backgroundColor: "rgba(58, 134, 255, 0.05)" },
+    ".cm-callout-warning": { borderLeftColor: "#ffbe0b", backgroundColor: "rgba(255, 190, 11, 0.05)" },
+    ".cm-callout-error": { borderLeftColor: "#ff006e", backgroundColor: "rgba(255, 0, 110, 0.05)" },
+    ".cm-callout-success": { borderLeftColor: "#38b000", backgroundColor: "rgba(56, 176, 0, 0.05)" },
+    ".cm-callout-vision": { borderLeftColor: "#06d6a0", backgroundColor: "rgba(6, 214, 160, 0.05)" },
+
+    // Codeblock styling
+    ".cm-codeblock-line": {
+        backgroundColor: "var(--bg-tertiary)",
+        fontFamily: "monospace",
+    },
+    ".cm-codeblock-copy-btn": {
+        position: "absolute",
+        right: "16px",
+        marginTop: "8px",
+        padding: "4px 8px",
+        fontSize: "12px",
+        backgroundColor: "var(--bg-secondary)",
+        border: "1px solid var(--bg-border)",
+        borderRadius: "4px",
+        color: "var(--text-secondary)",
+        cursor: "pointer",
+        zIndex: 10,
+        fontFamily: "'Inter', sans-serif"
+    },
+    ".cm-codeblock-copy-btn:hover": {
+        backgroundColor: "var(--bg-tertiary)",
+        color: "var(--text-primary)"
+    },
+
+    // Lists styling
+    ".cm-list-item-line": {
+        position: "relative",
+    },
+    ".cm-list-item-line::before": {
+        content: "''",
+        position: "absolute",
+        left: "-16px",
+        top: "0",
+        bottom: "0",
+        width: "2px",
+        backgroundColor: "var(--bg-border)",
+    },
+
+    // Hidden frontmatter lines (raw source hidden when widget is shown)
+    ".cm-frontmatter-hidden": {
+        fontSize: "0",
+        lineHeight: "0",
+        height: "0",
+        overflow: "hidden",
+        padding: "0 !important",
+        margin: "0 !important",
     }
 });
 

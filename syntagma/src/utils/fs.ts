@@ -210,5 +210,17 @@ export const FileSystemAPI = {
             console.error(e);
             return { canceled: true };
         }
+    },
+
+    async deleteFile(filePath: string): Promise<boolean> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return false;
+            const res = await ipc.invoke('fs:deleteFile', { filePath });
+            return res.success;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
     }
 };

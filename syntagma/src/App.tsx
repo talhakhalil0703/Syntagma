@@ -15,27 +15,19 @@ import {
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useWorkspaceStore, type PaneItem } from "./store/workspaceStore";
-import { useThemeStore } from "./store/themeStore";
+
 import {
   PanelLeftClose,
   PanelRightClose,
-  PanelLeftOpen,
-  PanelRightOpen,
-  PenTool,
-  Moon,
-  Sun,
   Settings,
   Database,
-  Plus,
-  Pin,
-  Code,
-  X,
   GitBranch
 } from "lucide-react";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsModal } from "./components/SettingsModal";
 import { SidebarContainer } from "./components/SidebarContainer";
-import { Editor } from "./components/Editor";
+import { EditorNode } from "./components/EditorNode";
+import { ContextMenu } from "./components/ContextMenu";
 import { useSettingsStore } from "./store/settingsStore";
 import { registry } from "./plugins/PluginRegistry";
 import FileExplorerPlugin from "./plugins/core/explorer/FileExplorerPlugin";
@@ -51,10 +43,7 @@ import HtmlExportPlugin from "./plugins/core/export-html/HtmlExportPlugin";
 import PdfExportPlugin from "./plugins/core/export-pdf/PdfExportPlugin";
 import BrowserPlugin from "./plugins/core/browser/BrowserPlugin";
 import ExcalidrawPlugin from "./plugins/core/excalidraw/ExcalidrawPlugin";
-import { BrowserView } from "./plugins/core/browser/BrowserView";
-import { ExcalidrawView } from "./plugins/core/excalidraw/ExcalidrawView";
 import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
-import { FileSystemAPI } from "./utils/fs";
 import { useVaultIndexStore } from "./store/vaultIndexStore";
 import "./styles/layout.css";
 
@@ -68,26 +57,16 @@ function App() {
     setRightSidebarWidth,
     leftPanes,
     rightPaneGroups,
-    openTabs,
-    activeTabId,
+    rootSplit,
     toggleLeftSidebar,
     toggleRightSidebar,
     movePane,
-    setActiveTab,
-    closeTab,
-    openTab,
     initWorkspace,
     openVault,
-    viewMode,
-    toggleViewMode,
-    addNoteToSidebar,
     vaultPath
   } = useWorkspaceStore();
 
   const { openSettings, loadSettings } = useSettingsStore();
-
-  const { mode, systemDark, setMode } = useThemeStore();
-  const isDark = mode === "dark" || (mode === "system" && systemDark);
 
   const [activePane, setActivePane] = useState<PaneItem | null>(null);
 
@@ -142,9 +121,6 @@ function App() {
     };
   }, [isResizingLeft, isResizingRight, setLeftSidebarWidth, setRightSidebarWidth]);
 
-  // File Content State
-  const [fileContent, setFileContent] = useState<string>("");
-  const [isSaving, setIsSaving] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -158,6 +134,25 @@ function App() {
     // Bootstrap Local Configs
     initWorkspace();
     loadSettings();
+
+    // Register Native Commands
+    useSettingsStore.getState().registerCommand({
+      id: "split-right",
+      name: "Split Right",
+      callback: () => {
+        const ag = useWorkspaceStore.getState().activeGroupId;
+        if (ag) useWorkspaceStore.getState().splitGroup(ag, "horizontal");
+      }
+    });
+
+    useSettingsStore.getState().registerCommand({
+      id: "split-down",
+      name: "Split Down",
+      callback: () => {
+        const ag = useWorkspaceStore.getState().activeGroupId;
+        if (ag) useWorkspaceStore.getState().splitGroup(ag, "vertical");
+      }
+    });
 
     // We pass the class constructor and its static manifest
     // The registry instantiates them with the `app` instance.
@@ -323,63 +318,6 @@ function App() {
     }
   }, [vaultPath]);
 
-  // Sync File Content with Active Tab
-  useEffect(() => {
-    let isMounted = true;
-
-    // Update document title with Vault Name
-    if (vaultPath) {
-      const vaultName = vaultPath.split('/').pop() || "Syntagma";
-      const tabTitle = openTabs.find(t => t.id === activeTabId)?.title || "Untitled";
-      document.title = `${vaultName} - ${tabTitle}`;
-    } else {
-      document.title = "Syntagma";
-    }
-
-    const loadContent = async () => {
-      if (!activeTabId) {
-        if (isMounted) setFileContent("");
-        return;
-      }
-      if (activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) {
-        // Welcome tab or newly created empty tab or browser tab
-        if (isMounted) setFileContent(activeTabId === "welcome" ? "# Welcome to Syntagma\n\nYour new local-first, blazing fast markdown editor.\n\nStart typing here..." : "");
-        return;
-      }
-
-      // Load from disk
-      try {
-        const content = await FileSystemAPI.readFile(activeTabId);
-        if (isMounted) setFileContent(content || "");
-      } catch (e) {
-        console.error("Failed to read file", e);
-        if (isMounted) setFileContent("");
-      }
-    };
-    loadContent();
-    return () => { isMounted = false; };
-  }, [activeTabId]);
-
-  // Debounced Save
-  const handleEditorChange = (val: string) => {
-    setFileContent(val);
-    if (!activeTabId || activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) return;
-
-    setIsSaving(true);
-    if ((window as any).saveTimeout) {
-      clearTimeout((window as any).saveTimeout);
-    }
-    (window as any).saveTimeout = setTimeout(async () => {
-      try {
-        await FileSystemAPI.writeFile(activeTabId, val);
-      } catch (e) {
-        console.error("Failed to save file", e);
-      } finally {
-        setIsSaving(false);
-      }
-    }, 1000);
-  };
-
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const allRightPanes = rightPaneGroups.flatMap(g => g.panes);
@@ -490,129 +428,8 @@ function App() {
             )}
 
             {/* Main Content Workspace */}
-            <main className="workspace-content">
-              <header
-                className="header"
-                style={{
-                  justifyContent: "space-between",
-                  paddingLeft: !leftSidebarOpen ? "76px" : "16px"
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  {!leftSidebarOpen && (
-                    <button
-                      className="icon-btn"
-                      onClick={toggleLeftSidebar}
-                      title="Expand Left Sidebar"
-                    >
-                      <PanelLeftOpen size={18} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Tab Bar Container */}
-                <div className="tab-bar">
-                  {openTabs.map(tab => (
-                    <div
-                      key={tab.id}
-                      className={`workspace-tab ${activeTabId === tab.id ? 'active' : ''}`}
-                      onClick={() => setActiveTab(tab.id)}
-                    >
-                      <PenTool size={14} color={activeTabId === tab.id ? "var(--text-accent)" : "currentColor"} />
-                      {tab.title}
-                      <button
-                        className="icon-btn"
-                        style={{ padding: '2px', marginLeft: '6px' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeTab(tab.id);
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-
-                  <button
-                    className="icon-btn"
-                    title="New Tab"
-                    style={{ alignSelf: 'center', marginLeft: '4px' }}
-                    onClick={() => {
-                      const newId = `tab-${Date.now()}`;
-                      openTab({ id: newId, title: "Untitled Note.md" });
-                    }}
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <button
-                    className="icon-btn"
-                    onClick={() => {
-                      if (activeTabId && !activeTabId.startsWith("tab-") && !activeTabId.startsWith("browser-") && activeTabId !== "welcome") {
-                        const tabTitle = openTabs.find(t => t.id === activeTabId)?.title || "Attached Note";
-                        addNoteToSidebar(activeTabId, tabTitle, "right");
-                      }
-                    }}
-                    title="Pin note to Right Sidebar"
-                  >
-                    <Pin size={18} />
-                  </button>
-                  <button
-                    className="icon-btn"
-                    onClick={toggleViewMode}
-                    title={viewMode === "source" ? "Switch to Live Preview" : "Switch to Source Mode"}
-                  >
-                    {viewMode === "source" ? <PenTool size={18} /> : <Code size={18} />}
-                  </button>
-                  <button
-                    className="icon-btn"
-                    onClick={() => setMode(isDark ? "light" : "dark")}
-                    title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                  >
-                    {isDark ? <Sun size={18} /> : <Moon size={18} />}
-                  </button>
-                  {!rightSidebarOpen && (
-                    <button
-                      className="icon-btn"
-                      onClick={toggleRightSidebar}
-                      title="Expand Right Sidebar"
-                    >
-                      <PanelRightOpen size={18} />
-                    </button>
-                  )}
-                </div>
-              </header>
-
-              {/* Full Path Breadcrumb Bar */}
-              {activeTabId && !activeTabId.startsWith("tab-") && !activeTabId.startsWith("browser-") && activeTabId !== "welcome" && (
-                <div style={{
-                  padding: "4px 16px",
-                  fontSize: "11px",
-                  color: "var(--text-secondary)",
-                  borderBottom: "1px solid var(--bg-border)",
-                  backgroundColor: "var(--bg-primary)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis"
-                }}>
-                  {activeTabId}
-                </div>
-              )}
-
-              <div style={{ flexGrow: 1, width: "100%", height: "100%", overflow: "auto" }}>
-                {activeTabId?.startsWith("browser-") ? (
-                  <BrowserView />
-                ) : activeTabId?.endsWith(".excalidraw") ? (
-                  <ExcalidrawView fileContent={fileContent} onChange={handleEditorChange} />
-                ) : (
-                  <Editor
-                    value={fileContent}
-                    onChange={handleEditorChange}
-                  />
-                )}
-              </div>
+            <main className="workspace-content" style={{ display: "flex", flexDirection: "column", padding: 0, margin: 0 }}>
+              <EditorNode node={rootSplit} />
             </main>
 
             {/* Right Sidebar */}
@@ -654,12 +471,11 @@ function App() {
         {/* Bottom Status Bar */}
         <footer className="status-bar">
           <div className="status-bar-group">
-            <span>{fileContent.trim() ? fileContent.trim().split(/\s+/).length : 0} words</span>
-            <span>{fileContent.length} characters</span>
+            {/* Status counts moved to Editor locally, or keep a global active tab counter if needed */}
+            <span>Ready</span>
           </div>
           <div className="status-bar-group">
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {isSaving ? "Saving..." : "Saved"}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '12px' }}>
               <GitBranch size={12} /> master
@@ -695,6 +511,7 @@ function App() {
         <CommandPalette />
         <SettingsModal />
         <TemplateSelectorModal />
+        <ContextMenu />
       </div>
     </DndContext>
   );

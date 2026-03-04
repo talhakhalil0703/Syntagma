@@ -1,6 +1,6 @@
 import React from "react";
 
-export const SettingHeading = ({ title, activeTab }: { title: string, activeTab?: string }) => {
+export const SettingHeading = ({ title }: { title: string }) => {
     // Only render heading if no activeTab is active (meaning not injected) or is explicitly active
     return (
         <h3 style={{

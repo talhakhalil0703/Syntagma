@@ -117,9 +117,9 @@ export function CommandPalette() {
                     flexDirection: 'column',
                     border: '1px solid var(--bg-border)',
                     overflow: 'hidden'
-                }}
+                } as any}
             >
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--bg-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--bg-border)', display: 'flex', alignItems: 'center', gap: '8px' } as any}>
                     <Search size={18} color="var(--text-secondary)" />
                     <input
                         ref={inputRef}
@@ -134,7 +134,7 @@ export function CommandPalette() {
                             outline: 'none',
                             color: 'var(--text-primary)',
                             fontSize: '16px'
-                        }}
+                        } as any}
                     />
                 </div>
 

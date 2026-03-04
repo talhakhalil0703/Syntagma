@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plugin } from "../../Plugin";
-import { format } from "date-fns";
+
 import { useDailyNotesStore } from "./dailyNotesStore";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { DailyNotesSettingTab } from "./DailyNotesSettingTab";

@@ -3,7 +3,7 @@ import { GitView } from "./GitView";
 import { GitBranch } from "lucide-react";
 import { useGitStore } from "./gitStore";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
-import { GitSettingTab } from "./GitSettingTab";
+
 
 export default class GitPlugin extends Plugin {
     id = "core-git";

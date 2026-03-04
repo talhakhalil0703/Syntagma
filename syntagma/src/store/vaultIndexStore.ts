@@ -6,6 +6,7 @@ interface VaultIndexState {
     isIndexing: boolean;
     buildIndex: (vaultPath: string) => Promise<void>;
     resolveShortestPath: (linkText: string) => string | null;
+    updateWikilinks: (oldName: string, newName: string) => Promise<void>;
 }
 
 export const useVaultIndexStore = create<VaultIndexState>((set, get) => ({
@@ -55,5 +56,34 @@ export const useVaultIndexStore = create<VaultIndexState>((set, get) => ({
         }
 
         return matches[0].path;
+    },
+
+    updateWikilinks: async (oldName: string, newName: string) => {
+        const { files } = get();
+        const mdFiles = files.filter(f => !f.isDirectory && f.name.endsWith('.md'));
+
+        // Escape for regex, avoiding issues with special chars
+        const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const oldEscaped = escapeRegExp(oldName);
+
+        // Match exact `[[oldName]]` or `[[oldName|alias]]`
+        const linkRegex = new RegExp(`\\[\\[${oldEscaped}(\\|.*?)?\\]\\]`, 'g');
+
+        const updates = mdFiles.map(async file => {
+            try {
+                const content = await FileSystemAPI.readFile(file.path);
+                if (content && linkRegex.test(content)) {
+                    // Do string replacement
+                    const newContent = content.replace(linkRegex, `[[${newName}$1]]`);
+                    await FileSystemAPI.writeFile(file.path, newContent);
+                    return true;
+                }
+            } catch (e) {
+                console.error(`Failed to update wikilink in ${file.path}`, e);
+            }
+            return false;
+        });
+
+        await Promise.all(updates);
     }
 }));

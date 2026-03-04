@@ -39,7 +39,12 @@ export const SidebarContainer: React.FC<SidebarProps> = ({ id, panes, headerStar
   const currentActivePane = activePane || panes[0];
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+    <div
+      // Sidebar Content Layout
+      style={{
+        display: "flex", flex: 1, flexDirection: "column", height: "100%", overflow: "hidden", WebkitAppRegion: "no-drag"
+      } as any}
+    >
       {/* Tab Bar / Header merged */}
       <SortableContext
         id={id}

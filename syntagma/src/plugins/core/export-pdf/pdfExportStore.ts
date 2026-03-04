@@ -10,7 +10,23 @@ export interface PdfExportState {
 export const usePdfExportStore = create<PdfExportState>(() => ({
     exportCurrentFileAsPDF: async () => {
         const workspaceStore = useWorkspaceStore.getState();
-        const activeFileId = workspaceStore.activeTabId;
+
+        let activeFileId = null;
+        if (workspaceStore.activeGroupId) {
+            // Quick recursive search for the active group
+            const findGroup = (node: any): any => {
+                if (node.type === "leaf" && node.group?.id === workspaceStore.activeGroupId) return node.group;
+                if (node.children) {
+                    for (const child of node.children) {
+                        const found = findGroup(child);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+            const group = findGroup(workspaceStore.rootSplit);
+            if (group) activeFileId = group.activeTabId;
+        }
 
         if (!activeFileId) {
             console.warn("No active file to export as PDF.");

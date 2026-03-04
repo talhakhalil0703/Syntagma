@@ -33,6 +33,10 @@ function createWindow() {
     });
 }
 
+// Suppress harmless Chromium GPU warnings on macOS
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('disable-gpu-driver-bug-workarounds');
+
 app.on('ready', createWindow);
 
 app.on('window-all-closed', () => {
@@ -272,6 +276,20 @@ ipcMain.handle('fs:mkdir', async (event, { dirPath }) => {
         await fsPromises.mkdir(dirPath, { recursive: true });
         return { success: true };
     } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Delete file utility (used by tab rename)
+ipcMain.handle('fs:deleteFile', async (event, { filePath }) => {
+    try {
+        if (!fs.existsSync(filePath)) {
+            return { success: false, error: "File not found" };
+        }
+        await fsPromises.unlink(filePath);
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to delete file:", error);
         return { success: false, error: error.message };
     }
 });

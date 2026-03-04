@@ -1,7 +1,7 @@
-import { useSettingsStore, type SettingTab, type Command } from "../store/settingsStore";
+import { useSettingsStore } from "../store/settingsStore";
 import { X, Search } from "lucide-react";
 import { useState, useMemo } from "react";
-import { SettingHeading, SettingItem, SettingToggle, SettingText, SettingSelect, SettingButton } from "./ui/SettingsUI";
+import { SettingHeading, SettingItem, SettingToggle, SettingText, SettingSelect } from "./ui/SettingsUI";
 
 export function SettingsModal() {
     const [activeTab, setActiveTab] = useState("general");
@@ -218,16 +218,18 @@ export function SettingsModal() {
         <div
             className="modal-overlay"
             onClick={closeSettings}
-            style={{
-                position: 'fixed',
-                top: 0, left: 0, right: 0, bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 1000,
-                WebkitAppRegion: 'no-drag' as any
-            }}
+            style={
+                {
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 1000,
+                    WebkitAppRegion: 'no-drag' as any
+                } as any
+            }
         >
             <div
                 className="settings-modal"

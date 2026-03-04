@@ -63,7 +63,22 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
 
     applyTemplateAndInsert: async (templateName: string) => {
         const vaultPath = useWorkspaceStore.getState().vaultPath;
-        const activeTabId = useWorkspaceStore.getState().activeTabId;
+        const workspaceStore = useWorkspaceStore.getState();
+        let activeTabId = null;
+        if (workspaceStore.activeGroupId) {
+            const findGroup = (node: any): any => {
+                if (node.type === "leaf" && node.group?.id === workspaceStore.activeGroupId) return node.group;
+                if (node.children) {
+                    for (const child of node.children) {
+                        const found = findGroup(child);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+            const group = findGroup(workspaceStore.rootSplit);
+            if (group) activeTabId = group.activeTabId;
+        }
 
         if (!vaultPath || !activeTabId || activeTabId === "welcome" || activeTabId.startsWith("tab-")) {
             console.warn("No valid active file to insert template into.");

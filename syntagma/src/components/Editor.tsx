@@ -2,7 +2,9 @@ import React, { useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { EditorView } from "@codemirror/view";
+import { Decoration, EditorView, WidgetType } from "@codemirror/view";
+import type { DecorationSet } from "@codemirror/view";
+import { StateField } from "@codemirror/state";
 import { useThemeStore } from "../store/themeStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { FileSystemAPI } from "../utils/fs";
@@ -10,14 +12,48 @@ import { livePreviewExtension } from "./editor/LivePreviewExtension";
 import { wikilinkExtension, wikilinkAutocomplete } from "./editor/WikilinkExtension";
 import { autocompletion } from "@codemirror/autocomplete";
 
+class TitleWidget extends WidgetType {
+  title: string;
+  constructor(title: string) { super(); this.title = title; }
+  eq(other: TitleWidget) { return this.title === other.title; }
+  toDOM() {
+    const h1 = document.createElement("h1");
+    h1.className = "cm-inline-title";
+    h1.innerText = this.title;
+    h1.style.marginTop = "0";
+    h1.style.marginBottom = "24px";
+    h1.style.fontSize = "2.5em";
+    h1.style.color = "var(--text-primary)";
+    h1.style.fontWeight = "800";
+    h1.style.letterSpacing = "-0.02em";
+    return h1;
+  }
+}
+
+export const inlineTitleExtension = (title: string) => {
+  return StateField.define<DecorationSet>({
+    create(state) {
+      if (state.doc.length === 0) return Decoration.none;
+      return Decoration.set([Decoration.widget({ widget: new TitleWidget(title), side: -1 }).range(0)]);
+    },
+    update(_deco, tr) {
+      if (tr.state.doc.length === 0) return Decoration.none;
+      return Decoration.set([Decoration.widget({ widget: new TitleWidget(title), side: -1 }).range(0)]);
+    },
+    provide: f => EditorView.decorations.from(f)
+  });
+}
+
 interface EditorProps {
   value?: string;
   onChange?: (val: string) => void;
+  title?: string;
 }
 
 export const Editor: React.FC<EditorProps> = ({
   value = "",
   onChange,
+  title,
 }) => {
   const { mode, systemDark } = useThemeStore();
   const isDark = mode === "dark" || (mode === "system" && systemDark);
@@ -92,8 +128,11 @@ export const Editor: React.FC<EditorProps> = ({
     if (viewMode === "live") {
       exts.push(livePreviewExtension());
     }
+    if (title) {
+      exts.push(inlineTitleExtension(title));
+    }
     return exts;
-  }, [themeExtensions, viewMode]);
+  }, [themeExtensions, viewMode, title]);
 
   const dropExtension = useMemo(() => {
     return EditorView.domEventHandlers({

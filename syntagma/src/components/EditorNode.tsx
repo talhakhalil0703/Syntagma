@@ -1,0 +1,282 @@
+import React, { useState, useEffect } from "react";
+import { type SplitNode, useWorkspaceStore } from "../store/workspaceStore";
+import { useThemeStore } from "../store/themeStore";
+import { PenTool, X, Plus, Pin, Code, Sun, Moon } from "lucide-react";
+import { FileSystemAPI } from "../utils/fs";
+import { useVaultIndexStore } from "../store/vaultIndexStore";
+import { BrowserView } from "../plugins/core/browser/BrowserView";
+import { ExcalidrawView } from "../plugins/core/excalidraw/ExcalidrawView";
+import { Editor } from "./Editor";
+import { useContextMenuStore } from "../store/contextMenuStore";
+
+interface EditorNodeProps {
+    node: SplitNode;
+}
+
+export const EditorNode: React.FC<EditorNodeProps> = ({ node }) => {
+    if (node.type === "split" && node.children) {
+        const isHorizontal = node.direction === "horizontal";
+        return (
+            <div style={{ display: "flex", flexDirection: isHorizontal ? "row" : "column", width: "100%", height: "100%" }}>
+                {node.children.map((child: SplitNode, index: number) => (
+                    <React.Fragment key={child.id}>
+                        <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                            <EditorNode node={child} />
+                        </div>
+                        {index < node.children!.length - 1 && (
+                            <div
+                                style={{
+                                    [isHorizontal ? "width" : "height"]: "4px",
+                                    backgroundColor: "var(--bg-border)",
+                                    cursor: isHorizontal ? "col-resize" : "row-resize"
+                                }}
+                            />
+                        )}
+                    </React.Fragment>
+                ))}
+            </div>
+        );
+    }
+
+    if (node.type === "leaf" && node.group) {
+        return <EditorGroupView group={node.group} />;
+    }
+
+    return null;
+};
+
+const EditorGroupView: React.FC<{ group: any }> = ({ group }) => {
+    const {
+        activeGroupId,
+        setActiveGroup,
+        closeTab,
+        openInNewTab,
+        addNoteToSidebar,
+        toggleViewMode,
+        viewMode,
+        setActiveTab,
+        splitGroup,
+        closeOtherTabs,
+        closeTabsToRight,
+        closeAllTabs,
+        renameTab
+    } = useWorkspaceStore();
+
+    const { mode, systemDark, setMode } = useThemeStore();
+    const isDark = mode === "dark" || (mode === "system" && systemDark);
+
+    const [fileContent, setFileContent] = useState<string>("");
+    const { openMenu } = useContextMenuStore();
+
+    const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+    const [renameVal, setRenameVal] = useState("");
+
+    const isActiveGroup = activeGroupId === group.id;
+    const activeTabId = group.activeTabId;
+
+    // Sync File Content with Active Tab locally for this group
+    useEffect(() => {
+        let isMounted = true;
+        const loadContent = async () => {
+            if (!activeTabId) {
+                if (isMounted) setFileContent("");
+                return;
+            }
+            if (activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) {
+                if (isMounted) setFileContent(activeTabId === "welcome" ? "# Welcome to Syntagma\n\nYour new local-first, blazing fast markdown editor.\n\nStart typing here..." : "");
+                return;
+            }
+            try {
+                const content = await FileSystemAPI.readFile(activeTabId);
+                if (isMounted) setFileContent(content || "");
+            } catch (e) {
+                if (isMounted) setFileContent("");
+            }
+        };
+        loadContent();
+        return () => { isMounted = false; };
+    }, [activeTabId]);
+
+    const handleEditorChange = (val: string) => {
+        setFileContent(val);
+        if (!activeTabId || activeTabId === "welcome" || activeTabId.startsWith("tab-") || activeTabId.startsWith("browser-")) return;
+
+        if ((window as any).saveTimeoutGroup) {
+            clearTimeout((window as any).saveTimeoutGroup);
+        }
+        (window as any).saveTimeoutGroup = setTimeout(async () => {
+            try {
+                await FileSystemAPI.writeFile(activeTabId, val);
+            } catch (e) { }
+        }, 1000);
+    };
+
+    const handleTabContextMenu = (e: React.MouseEvent, tab: any) => {
+        e.preventDefault();
+        openMenu(e.clientX, e.clientY, [
+            { id: "close", label: "Close", action: () => closeTab(tab.id, group.id) },
+            { id: "close-others", label: "Close Others", action: () => closeOtherTabs(tab.id, group.id) },
+            { id: "close-right", label: "Close to the Right", action: () => closeTabsToRight(tab.id, group.id) },
+            { id: "close-all", label: "Close All", action: () => closeAllTabs(group.id) },
+            { id: "split-right", label: "Split Right", group: 'split', action: () => splitGroup(group.id, "horizontal") },
+            { id: "split-down", label: "Split Down", group: 'split', action: () => splitGroup(group.id, "vertical") },
+        ], { tabId: tab.id, groupId: group.id }, "tab");
+    };
+
+    const commitRename = async (tab: any) => {
+        if (renamingTabId && renameVal.trim() && renameVal !== tab.title) {
+            const oldPath = tab.id;
+            let newTitle = renameVal.trim();
+            if (!newTitle.endsWith('.md')) newTitle += '.md';
+
+            // Recompute new path by replacing the filename at the end
+            const pathParts = oldPath.split('/');
+            pathParts[pathParts.length - 1] = newTitle;
+            const newPath = pathParts.join('/');
+
+            try {
+                const content = await FileSystemAPI.readFile(oldPath);
+                if (content !== null) {
+                    await FileSystemAPI.writeFile(newPath, content);
+                    await FileSystemAPI.deleteFile(oldPath);
+                    renameTab(oldPath, newPath, newTitle);
+
+                    // Extract base name assuming standard formatting
+                    const oldBaseName = tab.title.replace(/\.md$/, '');
+                    const newBaseName = newTitle.replace(/\.md$/, '');
+
+                    if (oldBaseName && newBaseName && oldBaseName !== newBaseName) {
+                        await useVaultIndexStore.getState().updateWikilinks(oldBaseName, newBaseName);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to rename file", e);
+            }
+        }
+        setRenamingTabId(null);
+    };
+
+    return (
+        <div
+            style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", border: isActiveGroup ? "1px solid var(--text-accent)" : "1px solid transparent" }}
+            onClick={() => { if (!isActiveGroup) setActiveGroup(group.id); }}
+        >
+            <header className="header" style={{ paddingLeft: "16px", minHeight: "40px", flexShrink: 0 }}>
+                <div className="tab-bar">
+                    {group.tabs.map((tab: any) => (
+                        <div
+                            key={tab.id}
+                            className={`workspace-tab ${activeTabId === tab.id ? 'active' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id, group.id); }}
+                            onContextMenu={(e) => handleTabContextMenu(e, tab)}
+                            onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                if (!tab.id.startsWith("tab-") && !tab.id.startsWith("browser-") && tab.id !== "welcome") {
+                                    setRenamingTabId(tab.id);
+                                    setRenameVal(tab.title);
+                                }
+                            }}
+                        >
+                            <PenTool size={14} color={activeTabId === tab.id ? "var(--text-accent)" : "currentColor"} />
+                            {renamingTabId === tab.id ? (
+                                <input
+                                    autoFocus
+                                    value={renameVal}
+                                    onChange={e => setRenameVal(e.target.value)}
+                                    onBlur={() => commitRename(tab)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') commitRename(tab);
+                                        if (e.key === 'Escape') setRenamingTabId(null);
+                                    }}
+                                    style={{ background: 'transparent', border: 'none', color: 'inherit', outline: 'none', width: '100px' }}
+                                    onClick={e => e.stopPropagation()}
+                                />
+                            ) : (
+                                tab.title
+                            )}
+                            <button
+                                className="icon-btn"
+                                style={{ padding: '2px', marginLeft: '6px' }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    closeTab(tab.id, group.id);
+                                }}
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                    ))}
+                    <button
+                        className="icon-btn"
+                        title="New Tab"
+                        style={{ alignSelf: 'center', marginLeft: '4px' }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            openInNewTab({ id: `tab-${Date.now()}`, title: "Untitled Note.md" });
+                        }}
+                    >
+                        <Plus size={16} />
+                    </button>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto" }}>
+                    {isActiveGroup && activeTabId && !activeTabId.startsWith("tab-") && activeTabId !== "welcome" && (
+                        <button
+                            className="icon-btn"
+                            onClick={() => {
+                                const tabTitle = group.tabs.find((t: any) => t.id === activeTabId)?.title || "Attached Note";
+                                addNoteToSidebar(activeTabId, tabTitle, "right");
+                            }}
+                            title="Pin note to Right Sidebar"
+                        >
+                            <Pin size={18} />
+                        </button>
+                    )}
+                    {isActiveGroup && (
+                        <>
+                            <button
+                                className="icon-btn"
+                                onClick={toggleViewMode}
+                                title={viewMode === "source" ? "Switch to Live Preview" : "Switch to Source Mode"}
+                            >
+                                {viewMode === "source" ? <PenTool size={18} /> : <Code size={18} />}
+                            </button>
+                            <button
+                                className="icon-btn"
+                                onClick={() => setMode(isDark ? "light" : "dark")}
+                                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                            >
+                                {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                            </button>
+                        </>
+                    )}
+                </div>
+            </header>
+
+            {/* Path Breadcrumb */}
+            {activeTabId && !activeTabId.startsWith("tab-") && !activeTabId.startsWith("browser-") && activeTabId !== "welcome" && (
+                <div style={{
+                    padding: "4px 16px", fontSize: "11px", color: "var(--text-secondary)",
+                    borderBottom: "1px solid var(--bg-border)", backgroundColor: "var(--bg-primary)",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0
+                }}>
+                    {activeTabId}
+                </div>
+            )}
+
+            {/* Editor Content */}
+            <div style={{ flexGrow: 1, width: "100%", height: "100%", overflow: "auto" }}>
+                {activeTabId?.startsWith("browser-") ? (
+                    <BrowserView /> // Note: browser view uses global activeTabId usually, might need adjustment later
+                ) : activeTabId?.endsWith(".excalidraw") ? (
+                    <ExcalidrawView fileContent={fileContent} onChange={handleEditorChange} />
+                ) : (
+                    <Editor
+                        value={fileContent}
+                        onChange={handleEditorChange}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};

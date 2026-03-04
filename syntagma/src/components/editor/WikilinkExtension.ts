@@ -92,7 +92,23 @@ class WikilinkWidget extends WidgetType {
                     let targetDir = vaultPath;
 
                     if (newFileLocation === "current") {
-                        const activeTabId = useWorkspaceStore.getState().activeTabId;
+                        const workspaceStore = useWorkspaceStore.getState();
+                        let activeTabId = null;
+                        if (workspaceStore.activeGroupId) {
+                            const findGroup = (node: any): any => {
+                                if (node.type === "leaf" && node.group?.id === workspaceStore.activeGroupId) return node.group;
+                                if (node.children) {
+                                    for (const child of node.children) {
+                                        const found = findGroup(child);
+                                        if (found) return found;
+                                    }
+                                }
+                                return null;
+                            };
+                            const group = findGroup(workspaceStore.rootSplit);
+                            if (group) activeTabId = group.activeTabId;
+                        }
+
                         // activeTabId is usually the absolute path for markdown files
                         if (activeTabId && !activeTabId.startsWith("tab-") && activeTabId !== "welcome" && !activeTabId.startsWith("browser-")) {
                             const lastSlash = activeTabId.lastIndexOf('/');
