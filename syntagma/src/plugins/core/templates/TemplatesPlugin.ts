@@ -1,6 +1,8 @@
+import React from 'react';
 import { Plugin } from "../../Plugin";
 import { useTemplatesStore } from "./templatesStore";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
+import { TemplatesSettingTab } from "./TemplatesSettingTab";
 
 export default class TemplatesPlugin extends Plugin {
     id = "core-templates";
@@ -9,14 +11,21 @@ export default class TemplatesPlugin extends Plugin {
     description = "Insert template snippets with dynamic date and title variables.";
     author = "Syntagma Core";
 
-    async onload(): Promise<void> {
+    async onload() {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
+        await useTemplatesStore.getState().loadSettings();
+
+        // Register Settings UI
+        this.addSettingTab({
+            name: "Templates",
+            render: () => React.createElement(TemplatesSettingTab)
+        });
+
         // Register the global Command Palette action
-        this.app.commands.addCommand({
+        this.addCommand({
             id: "templates:insert",
             name: "Templates: Insert Template",
-            pluginId: this.manifest.id,
             callback: () => {
                 useTemplatesStore.getState().openSelector();
             }

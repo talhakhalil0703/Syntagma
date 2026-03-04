@@ -26,7 +26,9 @@ interface WorkspaceState {
 
   // Sidebar State
   leftSidebarOpen: boolean;
+  leftSidebarWidth: number;
   rightSidebarOpen: boolean;
+  rightSidebarWidth: number;
   leftPanes: PaneItem[];
   rightPaneGroups: PaneGroup[];
   activeLeftPaneId: string | null;
@@ -38,6 +40,8 @@ interface WorkspaceState {
 
   toggleLeftSidebar: () => void;
   toggleRightSidebar: () => void;
+  setLeftSidebarWidth: (width: number) => void;
+  setRightSidebarWidth: (width: number) => void;
   setActiveLeftPane: (id: string) => void;
   setActiveRightPane: (groupId: string, paneId: string) => void;
   movePane: (paneId: string, sourceId: string, destId: string, newIndex: number) => void;
@@ -92,7 +96,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   vaultPath: null,
 
   leftSidebarOpen: true,
+  leftSidebarWidth: 280,
   rightSidebarOpen: true,
+  rightSidebarWidth: 280,
   leftPanes: initialLeftPanes,
   rightPaneGroups: [{
     id: "right-group-1",
@@ -112,6 +118,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   toggleRightSidebar: () => {
     set((state) => ({ rightSidebarOpen: !state.rightSidebarOpen }));
     useWorkspaceStore.getState().saveWorkspaceState();
+  },
+  setLeftSidebarWidth: (width) => {
+    set({ leftSidebarWidth: width });
+  },
+  setRightSidebarWidth: (width) => {
+    set({ rightSidebarWidth: width });
   },
   setActiveLeftPane: (id) => {
     set({ activeLeftPaneId: id });
@@ -302,6 +314,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         set({
           leftSidebarOpen: parsed.leftSidebarOpen ?? true,
           rightSidebarOpen: parsed.rightSidebarOpen ?? true,
+          leftSidebarWidth: parsed.leftSidebarWidth,
+          rightSidebarWidth: parsed.rightSidebarWidth,
           leftPanes: parsed.leftPanes || initialLeftPanes,
           rightPaneGroups: loadedRightGroups || [{ id: "right-group-1", panes: initialRightPanes, activeTabId: initialRightPanes[0]?.id || null }],
           activeLeftPaneId: parsed.activeLeftPaneId || initialLeftPanes[0]?.id || null,
@@ -323,6 +337,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     const payload = JSON.stringify({
       leftSidebarOpen: state.leftSidebarOpen,
       rightSidebarOpen: state.rightSidebarOpen,
+      leftSidebarWidth: state.leftSidebarWidth,
+      rightSidebarWidth: state.rightSidebarWidth,
       leftPanes: state.leftPanes,
       rightPaneGroups: state.rightPaneGroups,
       activeLeftPaneId: state.activeLeftPaneId,

@@ -11,7 +11,7 @@ export default class PdfExportPlugin extends Plugin {
     async onload(): Promise<void> {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
-        this.app.commands.addCommand({
+        this.addCommand({
             id: 'export-pdf-current',
             name: 'Export: Current file as PDF',
             callback: () => {

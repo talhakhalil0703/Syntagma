@@ -29,8 +29,20 @@ export abstract class Plugin {
     }
 
     // Helper APIs for Plugins
-    addCommand(_command: { id: string, name: string, callback: () => void }) {
-        // Interface to register to Command Palette
+    addCommand(command: { id: string, name: string, defaultHotkey?: string, callback: () => void }) {
+        this.app.commands.addCommand({
+            ...command,
+            pluginId: this.manifest.id
+        });
+    }
+
+    addSettingTab(tab: { name: string, render: () => React.ReactNode }) {
+        this.app.workspace.registerSettingTab({
+            id: `tab-${this.manifest.id}`,
+            name: tab.name,
+            pluginId: this.manifest.id,
+            render: tab.render
+        });
     }
 
     addRibbonIcon(_iconId: string, _title: string, _callback: () => void) {

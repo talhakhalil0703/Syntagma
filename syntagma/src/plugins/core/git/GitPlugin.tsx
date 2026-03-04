@@ -3,6 +3,7 @@ import { GitView } from "./GitView";
 import { GitBranch } from "lucide-react";
 import { useGitStore } from "./gitStore";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
+import { GitSettingTab } from "./GitSettingTab";
 
 export default class GitPlugin extends Plugin {
     id = "core-git";
@@ -13,16 +14,15 @@ export default class GitPlugin extends Plugin {
     private cleanupInterval: (() => void) | null = null;
 
     async onload(): Promise<void> {
-        console.log(`Loading plugin: ${this.manifest.name}`);
+        console.log(`Loading plugin: ${this.manifest.name} `);
 
         // Register the Git Pane
         this.app.workspace.registerView(this.manifest.id, GitView, GitBranch);
 
         // Register the global Command Palette actions
-        this.app.commands.addCommand({
+        this.addCommand({
             id: "git:sync",
             name: "Git: Sync Vault (Commit, Pull, Push)",
-            pluginId: this.manifest.id,
             callback: () => {
                 const store = useGitStore.getState();
                 if (store.isGitRepo && !store.isSyncing) {

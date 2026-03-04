@@ -11,7 +11,7 @@ export default class BrowserPlugin extends Plugin {
     async onload(): Promise<void> {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
-        this.app.commands.addCommand({
+        this.addCommand({
             id: 'open-web-browser',
             name: 'Web Browser: Open New Tab',
             callback: () => {

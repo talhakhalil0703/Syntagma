@@ -6,13 +6,22 @@ export interface Command {
     id: string;
     name: string;
     callback: () => void;
+    defaultHotkey?: string;
     // which plugin registered this?
     pluginId?: string;
+}
+
+export interface SettingTab {
+    id: string;
+    name: string;
+    pluginId: string;
+    render: () => React.ReactNode;
 }
 
 export interface SettingsState {
     // User Persistence Settings
     attachmentFolderPath: string;
+    newFileLocation: "root" | "current";
     autoUpdate: boolean;
 
     // Modal Visibility
@@ -20,7 +29,9 @@ export interface SettingsState {
     isQuickOpen: boolean; // Cmd+O mode vs Cmd+P mode
     isSettingsOpen: boolean;
 
-    // Registered Commands
+    // Dynamic Plugin integrations
+    pluginSettingsTabs: SettingTab[];
+    hotkeys: Record<string, string>; // Maps commandId -> Key combo (e.g. "Mod+P")
     commands: Command[];
 
     // Actions
@@ -37,14 +48,22 @@ export interface SettingsState {
 
     registerCommand: (command: Command) => void;
     unregisterCommand: (commandId: string) => void;
+
+    registerSettingTab: (tab: SettingTab) => void;
+    unregisterSettingTab: (tabId: string) => void;
+
+    setHotkey: (commandId: string, hotkey: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
     attachmentFolderPath: "/",
+    newFileLocation: "root",
     autoUpdate: true,
     isCommandPaletteOpen: false,
     isQuickOpen: false,
     isSettingsOpen: false,
+    pluginSettingsTabs: [],
+    hotkeys: {},
     commands: [],
 
     openCommandPalette: (quickOpen = false) => set({
@@ -58,6 +77,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
     registerCommand: (cmd) => set((state) => ({ commands: [...state.commands, cmd] })),
     unregisterCommand: (cmdId) => set((state) => ({ commands: state.commands.filter(c => c.id !== cmdId) })),
+
+    registerSettingTab: (tab) => set((state) => ({ pluginSettingsTabs: [...state.pluginSettingsTabs, tab] })),
+    unregisterSettingTab: (tabId) => set((state) => ({ pluginSettingsTabs: state.pluginSettingsTabs.filter(t => t.id !== tabId) })),
+
+    setHotkey: (commandId, hotkey) => {
+        set((state) => ({
+            hotkeys: { ...state.hotkeys, [commandId]: hotkey }
+        }));
+        useSettingsStore.getState().saveSettings();
+    },
 
     updateSetting: (key, value) => {
         set({ [key]: value } as any);
@@ -76,7 +105,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 const parsed = JSON.parse(data);
                 set({
                     attachmentFolderPath: parsed.attachmentFolderPath ?? "/",
-                    autoUpdate: parsed.autoUpdate ?? true
+                    newFileLocation: parsed.newFileLocation ?? "root",
+                    autoUpdate: parsed.autoUpdate ?? true,
+                    hotkeys: parsed.hotkeys ?? {}
                 });
             } catch (e) {
                 console.error("Failed to parse settings.json", e);
@@ -93,7 +124,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
         const payload = JSON.stringify({
             attachmentFolderPath: state.attachmentFolderPath,
-            autoUpdate: state.autoUpdate
+            newFileLocation: state.newFileLocation,
+            autoUpdate: state.autoUpdate,
+            hotkeys: state.hotkeys
         }, null, 2);
 
         await FileSystemAPI.writeFile(configPath, payload);

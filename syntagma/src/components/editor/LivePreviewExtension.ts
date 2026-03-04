@@ -10,7 +10,7 @@ import {
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
 import { FileSystemAPI } from "../../utils/fs";
-import { useWorkspaceStore } from "../../store/workspaceStore";
+import { useVaultIndexStore } from "../../store/vaultIndexStore";
 
 // Hide decoration for syntax markers
 export const hideMarkDeco = Decoration.replace({});
@@ -40,14 +40,10 @@ class ImageWidget extends WidgetType {
         img.style.display = "block";
         img.alt = this.src;
 
-        const vaultPath = useWorkspaceStore.getState().vaultPath;
-        if (vaultPath && this.src) {
-            // Remove 'Attachments/' prefix if user implicitly uses it, 
-            // but for safety we just append whatever they wrote.
-            // Some users type `![[image.png]]` or `![[Attachments/image.png]]`.
-            // The searchVault or pure relative might be better, but we assume exact relative path for now.
-            const fullPath = `${vaultPath}/${this.src}`;
-            FileSystemAPI.readImageBase64(fullPath).then(base64 => {
+        const resolvedPath = useVaultIndexStore.getState().resolveShortestPath(this.src);
+
+        if (resolvedPath) {
+            FileSystemAPI.readImageBase64(resolvedPath).then(base64 => {
                 if (base64) {
                     img.src = base64;
                 } else {

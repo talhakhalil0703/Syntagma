@@ -20,10 +20,9 @@ export default class FileExplorerPlugin extends Plugin {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
         // Test: Register a global command palette shortcut
-        this.app.commands.addCommand({
+        this.addCommand({
             id: "file-explorer:new-file",
             name: "Create new note",
-            pluginId: this.manifest.id,
             callback: () => {
                 console.log("File Explorer: creating new file...");
                 this.app.workspace.openTab(`note-${Date.now()}`, "Untitled Note.md");

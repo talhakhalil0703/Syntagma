@@ -12,7 +12,7 @@ export default class HtmlExportPlugin extends Plugin {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
         // Register the "Export: Current file as HTML" command
-        this.app.commands.addCommand({
+        this.addCommand({
             id: 'export-html-current',
             name: 'Export: Current file as HTML',
             callback: () => {

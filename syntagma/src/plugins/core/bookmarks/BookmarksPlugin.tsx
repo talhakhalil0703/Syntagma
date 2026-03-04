@@ -18,10 +18,9 @@ export default class BookmarksPlugin extends Plugin {
         this.app.workspace.registerView(this.manifest.id, BookmarksView, Bookmark);
 
         // Register the global Command Palette action
-        this.app.commands.addCommand({
+        this.addCommand({
             id: "bookmarks:toggle-current",
             name: "Bookmark: Toggle active file",
-            pluginId: this.manifest.id,
             callback: () => {
                 const { activeTabId, openTabs } = useWorkspaceStore.getState();
                 if (!activeTabId) return;

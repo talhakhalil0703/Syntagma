@@ -103,6 +103,20 @@ body {
   overflow: hidden;
 }
 
+.sidebar-resizer {
+  width: 4px;
+  cursor: col-resize;
+  background-color: transparent;
+  flex-shrink: 0;
+  z-index: 10;
+  transition: background-color 0.2s;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.active {
+  background-color: var(--text-accent);
+}
+
 .header {
   height: var(--header-height);
   display: flex;

@@ -14,9 +14,11 @@ import { FileText } from "lucide-react";
 interface SidebarProps {
   id: string;
   panes: PaneItem[];
+  headerStart?: React.ReactNode;
+  headerEnd?: React.ReactNode;
 }
 
-export const SidebarContainer: React.FC<SidebarProps> = ({ id, panes }) => {
+export const SidebarContainer: React.FC<SidebarProps> = ({ id, panes, headerStart, headerEnd }) => {
   const { setNodeRef } = useDroppable({ id });
 
   const activePaneId = useWorkspaceStore(state => {
@@ -37,8 +39,8 @@ export const SidebarContainer: React.FC<SidebarProps> = ({ id, panes }) => {
   const currentActivePane = activePane || panes[0];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Tab Bar */}
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      {/* Tab Bar / Header merged */}
       <SortableContext
         id={id}
         items={panes.map((p) => p.id)}
@@ -46,25 +48,25 @@ export const SidebarContainer: React.FC<SidebarProps> = ({ id, panes }) => {
       >
         <div
           ref={setNodeRef}
-          className="sidebar-tab-bar"
+          className="header"
           style={{
-            display: "flex",
-            flexDirection: "row",
-            overflowX: "auto",
-            overflowY: "hidden",
-            borderBottom: "1px solid var(--bg-border)",
-            minHeight: "40px",
-            backgroundColor: "var(--bg-tertiary)",
+            paddingLeft: id === "left" ? "76px" : "16px",
+            gap: "4px",
+            justifyContent: "flex-start"
           }}
         >
-          {panes.map((pane) => (
-            <SortableTab
-              key={pane.id}
-              pane={pane}
-              isActive={currentActivePane && pane.id === currentActivePane.id}
-              onClick={() => setActivePane(pane.id)}
-            />
-          ))}
+          {headerStart}
+          <div style={{ display: 'flex', gap: '4px', flexGrow: 1, overflowX: 'auto', scrollbarWidth: 'none', height: '100%', alignItems: 'center' }} className="hide-scrollbar">
+            {panes.map((pane) => (
+              <SortableTab
+                key={pane.id}
+                pane={pane}
+                isActive={currentActivePane && pane.id === currentActivePane.id}
+                onClick={() => setActivePane(pane.id)}
+              />
+            ))}
+          </div>
+          {headerEnd}
         </div>
       </SortableContext>
 
@@ -125,11 +127,13 @@ const SortableTab: React.FC<SortableTabProps> = ({ pane, isActive, onClick }) =>
     cursor: "pointer",
     borderBottom: isActive ? "2px solid var(--text-accent)" : "2px solid transparent",
     color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-    backgroundColor: isActive ? "var(--bg-primary)" : "transparent",
+    backgroundColor: "transparent",
     userSelect: "none",
-    minWidth: "44px",
-    flexShrink: 0
-  };
+    height: "100%",
+    minWidth: "32px",
+    flexShrink: 0,
+    WebkitAppRegion: "no-drag"
+  } as React.CSSProperties;
 
   return (
     <div

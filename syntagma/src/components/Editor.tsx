@@ -7,6 +7,8 @@ import { useThemeStore } from "../store/themeStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { FileSystemAPI } from "../utils/fs";
 import { livePreviewExtension } from "./editor/LivePreviewExtension";
+import { wikilinkExtension, wikilinkAutocomplete } from "./editor/WikilinkExtension";
+import { autocompletion } from "@codemirror/autocomplete";
 
 interface EditorProps {
   value?: string;
@@ -83,6 +85,8 @@ export const Editor: React.FC<EditorProps> = ({
         codeLanguages: languages,
       }),
       EditorView.lineWrapping,
+      autocompletion({ override: [wikilinkAutocomplete] }),
+      wikilinkExtension(),
       ...themeExtensions,
     ];
     if (viewMode === "live") {

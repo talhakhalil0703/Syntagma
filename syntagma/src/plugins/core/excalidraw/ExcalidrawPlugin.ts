@@ -11,7 +11,7 @@ export default class ExcalidrawPlugin extends Plugin {
     async onload(): Promise<void> {
         console.log(`Loading plugin: ${this.manifest.name}`);
 
-        this.app.commands.addCommand({
+        this.addCommand({
             id: 'excalidraw-new',
             name: 'Excalidraw: Create new drawing',
             callback: () => {

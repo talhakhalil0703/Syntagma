@@ -1,7 +1,9 @@
+import React from 'react';
 import { Plugin } from "../../Plugin";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useTasksStore } from "./tasksStore";
 import { TasksPane } from "./TasksPane";
+import { TasksSettingTab } from "./TasksSettingTab";
 import { CheckSquare } from "lucide-react";
 
 export default class TasksPlugin extends Plugin {
@@ -12,9 +14,17 @@ export default class TasksPlugin extends Plugin {
     author = "Syntagma Core";
 
     async onload(): Promise<void> {
-        console.log(`Loading plugin: ${this.manifest.name}`);
+        console.log(`Loading plugin: ${this.manifest.name} `);
 
-        // Register the UI View
+        await useTasksStore.getState().loadSettings();
+
+        // Register Settings UI
+        this.addSettingTab({
+            name: "Tasks",
+            render: () => React.createElement(TasksSettingTab)
+        });
+
+        // Register Sidebar View
         this.app.workspace.registerView(this.manifest.id, TasksPane, CheckSquare);
 
         // Whenever a new vault is opened, synchronize our store settings
@@ -31,6 +41,6 @@ export default class TasksPlugin extends Plugin {
     }
 
     async onunload(): Promise<void> {
-        console.log(`Unloading plugin: ${this.manifest.name}`);
+        console.log(`Unloading plugin: ${this.manifest.name} `);
     }
 }

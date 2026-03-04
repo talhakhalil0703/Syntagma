@@ -1,6 +1,9 @@
+import React from 'react';
 import { Plugin } from "../../Plugin";
+import { format } from "date-fns";
 import { useDailyNotesStore } from "./dailyNotesStore";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
+import { DailyNotesSettingTab } from "./DailyNotesSettingTab";
 
 export default class DailyNotesPlugin extends Plugin {
     id = "core-daily-notes";
@@ -9,14 +12,21 @@ export default class DailyNotesPlugin extends Plugin {
     description = "Create and jump to today's daily journal/note.";
     author = "Syntagma Core";
 
-    async onload(): Promise<void> {
-        console.log(`Loading plugin: ${this.manifest.name}`);
+    async onload() {
+        console.log(`Loading plugin: ${this.manifest.name} `);
+
+        await useDailyNotesStore.getState().loadSettings();
+
+        // Register Settings UI
+        this.addSettingTab({
+            name: "Daily Notes",
+            render: () => React.createElement(DailyNotesSettingTab)
+        });
 
         // Register the global Command Palette action
-        this.app.commands.addCommand({
-            id: "daily-notes:open",
+        this.addCommand({
+            id: "daily:open-today",
             name: "Daily Notes: Open today's note",
-            pluginId: this.manifest.id,
             callback: () => {
                 useDailyNotesStore.getState().openDailyNote();
             }
@@ -31,6 +41,6 @@ export default class DailyNotesPlugin extends Plugin {
     }
 
     async onunload(): Promise<void> {
-        console.log(`Unloading plugin: ${this.manifest.name}`);
+        console.log(`Unloading plugin: ${this.manifest.name} `);
     }
 }

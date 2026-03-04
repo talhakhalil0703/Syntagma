@@ -2,6 +2,7 @@ import { Plugin } from "../../Plugin";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useDataviewStore } from "./dataviewStore";
 import { DataviewPane } from "./DataviewPane";
+import { DataviewSettingTab } from "./DataviewSettingTab";
 import { Database } from "lucide-react";
 
 export default class DataviewPlugin extends Plugin {
@@ -12,7 +13,15 @@ export default class DataviewPlugin extends Plugin {
     author = "Syntagma Core";
 
     async onload(): Promise<void> {
-        console.log(`Loading plugin: ${this.manifest.name}`);
+        console.log(`Loading plugin: ${this.manifest.name} `);
+
+        await useDataviewStore.getState().loadSettings();
+
+        // Register Settings UI
+        this.addSettingTab({
+            name: "Dataview",
+            render: () => <DataviewSettingTab />
+        });
 
         // Register the UI View
         this.app.workspace.registerView(this.manifest.id, DataviewPane, Database);
@@ -26,6 +35,6 @@ export default class DataviewPlugin extends Plugin {
     }
 
     async onunload(): Promise<void> {
-        console.log(`Unloading plugin: ${this.manifest.name}`);
+        console.log(`Unloading plugin: ${this.manifest.name} `);
     }
 }

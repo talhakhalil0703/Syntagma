@@ -24,9 +24,6 @@ import {
   PenTool,
   Moon,
   Sun,
-  Files,
-  Search,
-  Bookmark,
   Settings,
   Database,
   Plus,
@@ -58,12 +55,17 @@ import { BrowserView } from "./plugins/core/browser/BrowserView";
 import { ExcalidrawView } from "./plugins/core/excalidraw/ExcalidrawView";
 import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
 import { FileSystemAPI } from "./utils/fs";
+import { useVaultIndexStore } from "./store/vaultIndexStore";
 import "./styles/layout.css";
 
 function App() {
   const {
     leftSidebarOpen,
     rightSidebarOpen,
+    leftSidebarWidth,
+    rightSidebarWidth,
+    setLeftSidebarWidth,
+    setRightSidebarWidth,
     leftPanes,
     rightPaneGroups,
     openTabs,
@@ -88,6 +90,57 @@ function App() {
   const isDark = mode === "dark" || (mode === "system" && systemDark);
 
   const [activePane, setActivePane] = useState<PaneItem | null>(null);
+
+  // Sidebar Resizing State
+  const [isResizingLeft, setIsResizingLeft] = useState(false);
+  const [isResizingRight, setIsResizingRight] = useState(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingLeft) {
+        let newWidth = e.clientX;
+        if (newWidth < 150) {
+          useWorkspaceStore.setState({ leftSidebarOpen: false });
+          setIsResizingLeft(false);
+        } else {
+          setLeftSidebarWidth(newWidth);
+        }
+      } else if (isResizingRight) {
+        let newWidth = document.body.clientWidth - e.clientX;
+        if (newWidth < 150) {
+          useWorkspaceStore.setState({ rightSidebarOpen: false });
+          setIsResizingRight(false);
+        } else {
+          setRightSidebarWidth(newWidth);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingLeft || isResizingRight) {
+        useWorkspaceStore.getState().saveWorkspaceState();
+      }
+      setIsResizingLeft(false);
+      setIsResizingRight(false);
+    };
+
+    if (isResizingLeft || isResizingRight) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    } else {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizingLeft, isResizingRight, setLeftSidebarWidth, setRightSidebarWidth]);
 
   // File Content State
   const [fileContent, setFileContent] = useState<string>("");
@@ -216,6 +269,13 @@ function App() {
       registry.unloadAll();
     };
   }, []);
+
+  // Sync Vault Index Core
+  useEffect(() => {
+    if (vaultPath) {
+      useVaultIndexStore.getState().buildIndex(vaultPath);
+    }
+  }, [vaultPath]);
 
   // Sync File Content with Active Tab
   useEffect(() => {
@@ -353,36 +413,34 @@ function App() {
           <div className="app-container">
             {/* Left Sidebar */}
             {leftSidebarOpen && (
-              <aside className="sidebar left">
-                <div className="header" style={{ paddingLeft: "76px" }}>
-                  <div style={{ display: "flex", gap: "4px" }}>
-                    <button className="icon-btn" title="Explorer" onClick={() => {
-                      useWorkspaceStore.getState().setActiveLeftPane("pane-file-explorer");
-                    }}><Files size={18} /></button>
-                    <button className="icon-btn" title="Search" onClick={() => {
-                      useWorkspaceStore.getState().setActiveLeftPane("pane-search");
-                    }}><Search size={18} /></button>
-                    <button className="icon-btn" title="Bookmarks" onClick={() => {
-                      useWorkspaceStore.getState().setActiveLeftPane("pane-bookmarks");
-                    }}><Bookmark size={18} /></button>
-                  </div>
-                  <button
-                    className="icon-btn"
-                    onClick={toggleLeftSidebar}
-                    title="Collapse Left Sidebar"
-                  >
-                    <PanelLeftClose size={18} />
-                  </button>
-                </div>
-                {/* Draggable Sidebar Content */}
-                <SidebarContainer id="left" panes={leftPanes} />
+              <>
+                <aside className="sidebar left" style={{ width: leftSidebarWidth }}>
+                  {/* Draggable Sidebar Content (Contains merged Header) */}
+                  <SidebarContainer
+                    id="left"
+                    panes={leftPanes}
+                    headerEnd={
+                      <button
+                        className="icon-btn"
+                        onClick={toggleLeftSidebar}
+                        title="Collapse Left Sidebar"
+                      >
+                        <PanelLeftClose size={18} />
+                      </button>
+                    }
+                  />
 
-                {/* Left Sidebar Footer for Settings/Vault */}
-                <div className="sidebar-footer">
-                  <button className="icon-btn" title="Open Vault" onClick={openVault}><Database size={18} /></button>
-                  <button className="icon-btn" title="Settings" onClick={openSettings}><Settings size={18} /></button>
-                </div>
-              </aside>
+                  {/* Left Sidebar Footer for Settings/Vault */}
+                  <div className="sidebar-footer">
+                    <button className="icon-btn" title="Open Vault" onClick={openVault}><Database size={18} /></button>
+                    <button className="icon-btn" title="Settings" onClick={openSettings}><Settings size={18} /></button>
+                  </div>
+                </aside>
+                <div
+                  className={`sidebar-resizer ${isResizingLeft ? 'active' : ''}`}
+                  onMouseDown={() => setIsResizingLeft(true)}
+                />
+              </>
             )}
 
             {/* Main Content Workspace */}
@@ -513,30 +571,36 @@ function App() {
 
             {/* Right Sidebar */}
             {rightSidebarOpen && (
-              <aside className="sidebar right" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                <div className="header">
-                  <span style={{ fontWeight: 600 }}>Tools</span>
-                  <button
-                    className="icon-btn"
-                    onClick={toggleRightSidebar}
-                    title="Collapse Right Sidebar"
-                  >
-                    <PanelRightClose size={18} />
-                  </button>
-                </div>
-                {/* Draggable Sidebar Content Groups */}
-                <div style={{ flexGrow: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-                  {rightPaneGroups.map(group => (
-                    <div key={group.id} style={{ display: "flex", flexDirection: "column", flexGrow: 1, minHeight: "200px" }}>
-                      <SidebarContainer
-                        id={group.id}
-                        panes={group.panes}
-                      />
-                    </div>
-                  ))}
-                  <EmptyRightDropZone />
-                </div>
-              </aside>
+              <>
+                <div
+                  className={`sidebar-resizer ${isResizingRight ? 'active' : ''}`}
+                  onMouseDown={() => setIsResizingRight(true)}
+                />
+                <aside className="sidebar right" style={{ width: rightSidebarWidth, display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <div className="header">
+                    <span style={{ fontWeight: 600 }}>Tools</span>
+                    <button
+                      className="icon-btn"
+                      onClick={toggleRightSidebar}
+                      title="Collapse Right Sidebar"
+                    >
+                      <PanelRightClose size={18} />
+                    </button>
+                  </div>
+                  {/* Draggable Sidebar Content Groups */}
+                  <div style={{ flexGrow: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+                    {rightPaneGroups.map(group => (
+                      <div key={group.id} style={{ display: "flex", flexDirection: "column", flexGrow: 1, minHeight: "200px" }}>
+                        <SidebarContainer
+                          id={group.id}
+                          panes={group.panes}
+                        />
+                      </div>
+                    ))}
+                    <EmptyRightDropZone />
+                  </div>
+                </aside>
+              </>
             )}
           </div>
         </div>

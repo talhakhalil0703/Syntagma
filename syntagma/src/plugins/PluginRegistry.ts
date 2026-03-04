@@ -1,15 +1,16 @@
 import { Plugin, type PluginManifest } from "./Plugin";
 import { useWorkspaceStore } from "../store/workspaceStore";
+import { useSettingsStore, type SettingTab, type Command } from "../store/settingsStore";
 
 // The Global App Interface passed into every Plugin
 export interface App {
     workspace: {
         openTab: (tabId: string, title?: string) => void;
         registerView: (viewId: string, component: React.FC, icon?: any) => void;
-        // ... we will expose more safe wrappers here
+        registerSettingTab: (tab: SettingTab) => void;
     };
     commands: {
-        addCommand: (cmd: any) => void;
+        addCommand: (cmd: Command) => void;
     };
     // ... more apis
 }
@@ -28,12 +29,14 @@ export class PluginRegistry {
                 },
                 registerView: (viewId, component, icon) => {
                     this.views[viewId] = { component, icon };
+                },
+                registerSettingTab: (tab) => {
+                    useSettingsStore.getState().registerSettingTab(tab);
                 }
             },
             commands: {
                 addCommand: (cmd) => {
-                    // Will inject into settingsStore commands list later
-                    console.log(`Registered command ${cmd.name}`);
+                    useSettingsStore.getState().registerCommand(cmd);
                 }
             }
         };
