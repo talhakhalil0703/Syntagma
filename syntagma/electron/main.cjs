@@ -22,6 +22,9 @@ function createWindow() {
 
     // Load from Vite dev server if running locally, else load build
     const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, '../dist/index.html')}`;
+    if (process.env.ELECTRON_START_URL) {
+        process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
+    }
     mainWindow.loadURL(startUrl);
 
     if (process.env.ELECTRON_START_URL) {

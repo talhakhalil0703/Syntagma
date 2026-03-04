@@ -10,6 +10,7 @@ import { type PaneItem, useWorkspaceStore } from "../store/workspaceStore";
 import { registry } from "../plugins/PluginRegistry";
 import { SidebarNoteView } from "./SidebarNoteView";
 import { FileText } from "lucide-react";
+import { useContextMenuStore } from "../store/contextMenuStore";
 
 interface SidebarProps {
   id: string;
@@ -68,6 +69,23 @@ export const SidebarContainer: React.FC<SidebarProps> = ({ id, panes, headerStar
                 pane={pane}
                 isActive={currentActivePane && pane.id === currentActivePane.id}
                 onClick={() => setActivePane(pane.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  useContextMenuStore.getState().openMenu(
+                    e.clientX,
+                    e.clientY,
+                    [
+                      {
+                        id: "close-tab",
+                        label: "Close Tab",
+                        action: () => {
+                          useWorkspaceStore.getState().closeSidebarTab(pane.id, id);
+                        }
+                      }
+                    ],
+                    { paneId: pane.id, sourceId: id }
+                  );
+                }}
               />
             ))}
           </div>
@@ -101,9 +119,10 @@ interface SortableTabProps {
   pane: PaneItem;
   isActive: boolean;
   onClick: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
-const SortableTab: React.FC<SortableTabProps> = ({ pane, isActive, onClick }) => {
+const SortableTab: React.FC<SortableTabProps> = ({ pane, isActive, onClick, onContextMenu }) => {
   const {
     attributes,
     listeners,
@@ -153,6 +172,7 @@ const SortableTab: React.FC<SortableTabProps> = ({ pane, isActive, onClick }) =>
         onClick();
         listeners?.onPointerDown?.(e);
       }}
+      onContextMenu={onContextMenu}
       title={pane.title}
     >
       <IconComponent size={20} />

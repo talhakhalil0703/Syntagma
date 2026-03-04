@@ -1,27 +1,27 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
   closestCorners,
   KeyboardSensor,
   PointerSensor,
-  type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
   defaultDropAnimationSideEffects,
   useDroppable,
   useSensor,
   useSensors,
+  useDndContext,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { useWorkspaceStore, type PaneItem } from "./store/workspaceStore";
+import { useWorkspaceStore } from "./store/workspaceStore";
 
 import {
   PanelLeftClose,
-  PanelRightClose,
   Settings,
   Database,
-  GitBranch
+  GitBranch,
+  PanelRightClose,
 } from "lucide-react";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsModal } from "./components/SettingsModal";
@@ -68,11 +68,18 @@ function App() {
 
   const { openSettings, loadSettings } = useSettingsStore();
 
-  const [activePane, setActivePane] = useState<PaneItem | null>(null);
-
   // Sidebar Resizing State
   const [isResizingLeft, setIsResizingLeft] = useState(false);
   const [isResizingRight, setIsResizingRight] = useState(false);
+
+  const leftSidebarRef = useRef<HTMLElement>(null);
+  const rightSidebarRef = useRef<HTMLElement>(null);
+  const leftWidthRef = useRef(leftSidebarWidth);
+  const rightWidthRef = useRef(rightSidebarWidth);
+
+  // Sync refs when Zustand store changes from outside
+  useEffect(() => { leftWidthRef.current = leftSidebarWidth; }, [leftSidebarWidth]);
+  useEffect(() => { rightWidthRef.current = rightSidebarWidth; }, [rightSidebarWidth]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -82,7 +89,8 @@ function App() {
           useWorkspaceStore.setState({ leftSidebarOpen: false });
           setIsResizingLeft(false);
         } else {
-          setLeftSidebarWidth(newWidth);
+          leftWidthRef.current = newWidth;
+          if (leftSidebarRef.current) leftSidebarRef.current.style.width = `${newWidth}px`;
         }
       } else if (isResizingRight) {
         let newWidth = document.body.clientWidth - e.clientX;
@@ -90,12 +98,19 @@ function App() {
           useWorkspaceStore.setState({ rightSidebarOpen: false });
           setIsResizingRight(false);
         } else {
-          setRightSidebarWidth(newWidth);
+          rightWidthRef.current = newWidth;
+          if (rightSidebarRef.current) rightSidebarRef.current.style.width = `${newWidth}px`;
         }
       }
     };
 
     const handleMouseUp = () => {
+      if (isResizingLeft) {
+        setLeftSidebarWidth(leftWidthRef.current);
+      }
+      if (isResizingRight) {
+        setRightSidebarWidth(rightWidthRef.current);
+      }
       if (isResizingLeft || isResizingRight) {
         useWorkspaceStore.getState().saveWorkspaceState();
       }
@@ -153,6 +168,25 @@ function App() {
         if (ag) useWorkspaceStore.getState().splitGroup(ag, "vertical");
       }
     });
+
+    useSettingsStore.getState().registerCommand({
+      id: "toggle-left-sidebar",
+      name: "Toggle Left Sidebar",
+      callback: () => {
+        useWorkspaceStore.getState().toggleLeftSidebar();
+      }
+    });
+
+    useSettingsStore.getState().registerCommand({
+      id: "toggle-right-sidebar",
+      name: "Toggle Right Sidebar",
+      callback: () => {
+        useWorkspaceStore.getState().toggleRightSidebar();
+      }
+    });
+
+    // Cancel any pending unloads from React StrictMode dev cycles
+    registry.cancelPendingUnload();
 
     // We pass the class constructor and its static manifest
     // The registry instantiates them with the `app` instance.
@@ -318,11 +352,8 @@ function App() {
     }
   }, [vaultPath]);
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const allRightPanes = rightPaneGroups.flatMap(g => g.panes);
-    const pane = [...leftPanes, ...allRightPanes].find((p) => p.id === active.id);
-    if (pane) setActivePane(pane);
+  const handleDragStart = () => {
+    // handled implicitly via CustomDragOverlay reading context
   };
 
   const handleDragOver = (_event: DragOverEvent) => {
@@ -331,7 +362,6 @@ function App() {
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    setActivePane(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -398,7 +428,7 @@ function App() {
             {/* Left Sidebar */}
             {leftSidebarOpen && (
               <>
-                <aside className="sidebar left" style={{ width: leftSidebarWidth }}>
+                <aside ref={leftSidebarRef} className="sidebar left" style={{ width: leftSidebarWidth }}>
                   {/* Draggable Sidebar Content (Contains merged Header) */}
                   <SidebarContainer
                     id="left"
@@ -429,7 +459,7 @@ function App() {
 
             {/* Main Content Workspace */}
             <main className="workspace-content" style={{ display: "flex", flexDirection: "column", padding: 0, margin: 0 }}>
-              <EditorNode node={rootSplit} />
+              <EditorNode node={rootSplit} isTopLeft={true} isTopRight={true} />
             </main>
 
             {/* Right Sidebar */}
@@ -439,7 +469,7 @@ function App() {
                   className={`sidebar-resizer ${isResizingRight ? 'active' : ''}`}
                   onMouseDown={() => setIsResizingRight(true)}
                 />
-                <aside className="sidebar right" style={{ width: rightSidebarWidth, display: "flex", flexDirection: "column", gap: "2px" }}>
+                <aside ref={rightSidebarRef} className="sidebar right" style={{ width: rightSidebarWidth, display: "flex", flexDirection: "column", gap: "2px" }}>
                   <div className="header">
                     <span style={{ fontWeight: 600 }}>Tools</span>
                     <button
@@ -452,13 +482,47 @@ function App() {
                   </div>
                   {/* Draggable Sidebar Content Groups */}
                   <div style={{ flexGrow: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-                    {rightPaneGroups.map(group => (
-                      <div key={group.id} style={{ display: "flex", flexDirection: "column", flexGrow: 1, minHeight: "200px" }}>
-                        <SidebarContainer
-                          id={group.id}
-                          panes={group.panes}
-                        />
-                      </div>
+                    {rightPaneGroups.map((group, index) => (
+                      <React.Fragment key={group.id}>
+                        {index > 0 && (
+                          <div
+                            className="right-group-resizer"
+                            style={{
+                              height: "4px",
+                              cursor: "row-resize",
+                              backgroundColor: "var(--bg-border)",
+                              flexShrink: 0,
+                            }}
+                            onMouseDown={(e) => {
+                              const startY = e.clientY;
+                              const startHeight = group.height || 200;
+                              let newHeight = startHeight;
+                              const onMouseMove = (moveEvent: MouseEvent) => {
+                                const diff = moveEvent.clientY - startY;
+                                newHeight = Math.max(100, startHeight - diff);
+                                const el = document.getElementById(`right-group-wrap-${group.id}`);
+                                if (el) {
+                                  el.style.height = `${newHeight}px`;
+                                  el.style.flexGrow = '0';
+                                }
+                              };
+                              const onMouseUp = () => {
+                                document.removeEventListener("mousemove", onMouseMove);
+                                document.removeEventListener("mouseup", onMouseUp);
+                                useWorkspaceStore.getState().setRightGroupHeight(group.id, newHeight);
+                              };
+                              document.addEventListener("mousemove", onMouseMove);
+                              document.addEventListener("mouseup", onMouseUp);
+                            }}
+                          />
+                        )}
+                        <div id={`right-group-wrap-${group.id}`} style={{ display: "flex", flexDirection: "column", height: group.height ? `${group.height}px` : "auto", flexGrow: group.height ? 0 : 1, minHeight: "200px" }}>
+                          <SidebarContainer
+                            id={group.id}
+                            panes={group.panes}
+                          />
+                        </div>
+                      </React.Fragment>
                     ))}
                     <EmptyRightDropZone />
                   </div>
@@ -490,21 +554,7 @@ function App() {
             }),
           }}
         >
-          {activePane ? (
-            <div
-              style={{
-                border: "1px solid var(--text-accent)",
-                borderRadius: "4px",
-                backgroundColor: "var(--bg-primary)",
-                padding: "8px",
-                boxShadow: "var(--shadow-md)",
-              }}
-            >
-              <span style={{ fontSize: "13px", fontWeight: 500 }}>
-                {activePane.title}
-              </span>
-            </div>
-          ) : null}
+          <CustomDragOverlay />
         </DragOverlay>
 
         {/* Global Modals */}
@@ -519,28 +569,55 @@ function App() {
 
 export default App;
 
+const CustomDragOverlay = () => {
+  const { active } = useDndContext();
+  if (!active) return null;
+
+  const { leftPanes, rightPaneGroups } = useWorkspaceStore.getState();
+  const allRightPanes = rightPaneGroups.flatMap(g => g.panes);
+  const pane = [...leftPanes, ...allRightPanes].find((p) => p.id === active.id);
+
+  if (!pane) return null;
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--text-accent)",
+        borderRadius: "4px",
+        backgroundColor: "var(--bg-primary)",
+        padding: "8px",
+        boxShadow: "var(--shadow-md)",
+      }}
+    >
+      <span style={{ fontSize: "13px", fontWeight: 500 }}>
+        {pane.title}
+      </span>
+    </div>
+  );
+};
+
 const EmptyRightDropZone = () => {
   const { setNodeRef, isOver } = useDroppable({ id: "new-right-group" });
   return (
     <div
       ref={setNodeRef}
       style={{
-        padding: "16px",
-        minHeight: "40px",
-        height: isOver ? "100px" : "40px",
-        border: "2px dashed var(--bg-border)",
-        margin: "8px",
+        padding: isOver ? "16px" : 0,
+        minHeight: isOver ? "100px" : "20px",
+        flexGrow: isOver ? 0 : 1,
+        border: isOver ? "2px dashed var(--bg-border)" : "none",
+        margin: "0 8px 8px 8px",
         borderRadius: "8px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         color: "var(--text-secondary)",
         transition: "all 0.2s ease",
-        opacity: isOver ? 1 : 0.5,
+        opacity: isOver ? 1 : 0,
         backgroundColor: isOver ? "var(--bg-tertiary)" : "transparent"
       }}
     >
-      Drop here to create a new split
+      {isOver && "Release to create a new split"}
     </div>
   );
 };

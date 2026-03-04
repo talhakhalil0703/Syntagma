@@ -49,7 +49,7 @@ export class PluginRegistry {
     // Load a single plugin
     async loadPlugin(pluginClass: new (app: App, manifest: PluginManifest) => Plugin, manifest: PluginManifest) {
         if (this.plugins.has(manifest.id)) {
-            console.warn(`Plugin ${manifest.id} is already loaded.`);
+            // Silently skip — this happens during React StrictMode double-mount
             return;
         }
 
@@ -79,8 +79,24 @@ export class PluginRegistry {
 
     // Unload all (for app shutdown)
     async unloadAll() {
-        for (const pluginId of this.plugins.keys()) {
-            await this.unloadPlugin(pluginId);
+        // In development, React StrictMode unmounts/remounts rapidly.
+        // We defer the actual unload so that if a remount happens immediately,
+        // we cancel the unload and keep plugins alive.
+        if (this._unloadTimer) clearTimeout(this._unloadTimer);
+        this._unloadTimer = setTimeout(async () => {
+            for (const pluginId of this.plugins.keys()) {
+                await this.unloadPlugin(pluginId);
+            }
+        }, 200) as unknown as number;
+    }
+
+    private _unloadTimer: number | null = null;
+
+    // Cancel a pending unload (called before loading)
+    cancelPendingUnload() {
+        if (this._unloadTimer) {
+            clearTimeout(this._unloadTimer);
+            this._unloadTimer = null;
         }
     }
 }

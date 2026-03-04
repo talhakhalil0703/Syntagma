@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { type SplitNode, useWorkspaceStore } from "../store/workspaceStore";
 import { useThemeStore } from "../store/themeStore";
-import { PenTool, X, Plus, Pin, Code, Sun, Moon } from "lucide-react";
+import { PenTool, X, Plus, Pin, Code, Sun, Moon, PanelLeftOpen, PanelRightOpen } from "lucide-react";
 import { FileSystemAPI } from "../utils/fs";
 import { useVaultIndexStore } from "../store/vaultIndexStore";
 import { BrowserView } from "../plugins/core/browser/BrowserView";
@@ -11,41 +11,48 @@ import { useContextMenuStore } from "../store/contextMenuStore";
 
 interface EditorNodeProps {
     node: SplitNode;
+    isTopLeft?: boolean;
+    isTopRight?: boolean;
 }
 
-export const EditorNode: React.FC<EditorNodeProps> = ({ node }) => {
+export const EditorNode: React.FC<EditorNodeProps> = ({ node, isTopLeft = false, isTopRight = false }) => {
     if (node.type === "split" && node.children) {
         const isHorizontal = node.direction === "horizontal";
         return (
             <div style={{ display: "flex", flexDirection: isHorizontal ? "row" : "column", width: "100%", height: "100%" }}>
-                {node.children.map((child: SplitNode, index: number) => (
-                    <React.Fragment key={child.id}>
-                        <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                            <EditorNode node={child} />
-                        </div>
-                        {index < node.children!.length - 1 && (
-                            <div
-                                style={{
-                                    [isHorizontal ? "width" : "height"]: "4px",
-                                    backgroundColor: "var(--bg-border)",
-                                    cursor: isHorizontal ? "col-resize" : "row-resize"
-                                }}
-                            />
-                        )}
-                    </React.Fragment>
-                ))}
+                {node.children.map((child: SplitNode, index: number) => {
+                    const childIsTopLeft = isTopLeft && index === 0;
+                    const childIsTopRight = isTopRight && (isHorizontal ? index === node.children!.length - 1 : index === 0);
+
+                    return (
+                        <React.Fragment key={child.id}>
+                            <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                                <EditorNode node={child} isTopLeft={childIsTopLeft} isTopRight={childIsTopRight} />
+                            </div>
+                            {index < node.children!.length - 1 && (
+                                <div
+                                    style={{
+                                        [isHorizontal ? "width" : "height"]: "4px",
+                                        backgroundColor: "var(--bg-border)",
+                                        cursor: isHorizontal ? "col-resize" : "row-resize"
+                                    }}
+                                />
+                            )}
+                        </React.Fragment>
+                    );
+                })}
             </div>
         );
     }
 
     if (node.type === "leaf" && node.group) {
-        return <EditorGroupView group={node.group} />;
+        return <EditorGroupView group={node.group} isTopLeft={isTopLeft} isTopRight={isTopRight} />;
     }
 
     return null;
 };
 
-const EditorGroupView: React.FC<{ group: any }> = ({ group }) => {
+const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: boolean }> = ({ group, isTopLeft, isTopRight }) => {
     const {
         activeGroupId,
         setActiveGroup,
@@ -59,7 +66,11 @@ const EditorGroupView: React.FC<{ group: any }> = ({ group }) => {
         closeOtherTabs,
         closeTabsToRight,
         closeAllTabs,
-        renameTab
+        renameTab,
+        leftSidebarOpen,
+        rightSidebarOpen,
+        toggleLeftSidebar,
+        toggleRightSidebar
     } = useWorkspaceStore();
 
     const { mode, systemDark, setMode } = useThemeStore();
@@ -161,8 +172,18 @@ const EditorGroupView: React.FC<{ group: any }> = ({ group }) => {
             style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", border: isActiveGroup ? "1px solid var(--text-accent)" : "1px solid transparent" }}
             onClick={() => { if (!isActiveGroup) setActiveGroup(group.id); }}
         >
-            <header className="header" style={{ paddingLeft: "16px", minHeight: "40px", flexShrink: 0 }}>
+            <header className="header" style={{ paddingLeft: (isTopLeft && !leftSidebarOpen) ? "76px" : "16px", minHeight: "40px", flexShrink: 0, transition: "padding-left 0.2s ease" }}>
                 <div className="tab-bar">
+                    {isTopLeft && !leftSidebarOpen && (
+                        <button
+                            className="icon-btn"
+                            onClick={toggleLeftSidebar}
+                            title="Expand Left Sidebar"
+                            style={{ marginRight: "8px", flexShrink: 0 }}
+                        >
+                            <PanelLeftOpen size={16} />
+                        </button>
+                    )}
                     {group.tabs.map((tab: any) => (
                         <div
                             key={tab.id}
@@ -249,6 +270,15 @@ const EditorGroupView: React.FC<{ group: any }> = ({ group }) => {
                                 {isDark ? <Sun size={18} /> : <Moon size={18} />}
                             </button>
                         </>
+                    )}
+                    {isTopRight && !rightSidebarOpen && (
+                        <button
+                            className="icon-btn"
+                            onClick={toggleRightSidebar}
+                            title="Expand Right Sidebar"
+                        >
+                            <PanelRightOpen size={16} />
+                        </button>
                     )}
                 </div>
             </header>

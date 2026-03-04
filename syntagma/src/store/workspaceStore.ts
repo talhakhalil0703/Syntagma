@@ -14,6 +14,7 @@ export interface PaneGroup {
   id: string;
   panes: PaneItem[];
   activeTabId: string | null;
+  height?: number;
 }
 
 export interface TabItem {
@@ -62,6 +63,8 @@ interface WorkspaceState {
   setActiveLeftPane: (id: string) => void;
   setActiveRightPane: (groupId: string, paneId: string) => void;
   movePane: (paneId: string, sourceId: string, destId: string, newIndex: number) => void;
+  closeSidebarTab: (paneId: string, sourceId: string) => void;
+  setRightGroupHeight: (groupId: string, height: number) => void;
   addNoteToSidebar: (noteId: string, title: string, sidebar: "left" | "right") => void;
 
   // Editor Actions
@@ -170,6 +173,44 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         return { rightPaneGroups: groups, rightSidebarOpen: true };
       }
     });
+    get().saveWorkspaceState();
+  },
+
+  closeSidebarTab: (paneId, sourceId) => {
+    set((state) => {
+      if (sourceId === "left") {
+        const newLeftPanes = state.leftPanes.filter(p => p.id !== paneId);
+        let newActiveLeft = state.activeLeftPaneId;
+        if (state.activeLeftPaneId === paneId) {
+          newActiveLeft = newLeftPanes.length > 0 ? newLeftPanes[newLeftPanes.length - 1].id : null;
+        }
+        return { leftPanes: newLeftPanes, activeLeftPaneId: newActiveLeft };
+      } else {
+        let newRightGroups = [...state.rightPaneGroups];
+        const groupIdx = newRightGroups.findIndex(g => g.id === sourceId);
+        if (groupIdx !== -1) {
+          const group = newRightGroups[groupIdx];
+          const newPanes = group.panes.filter(p => p.id !== paneId);
+          if (newPanes.length === 0) {
+            newRightGroups.splice(groupIdx, 1);
+          } else {
+            let newActive = group.activeTabId;
+            if (group.activeTabId === paneId) {
+              newActive = newPanes[newPanes.length - 1].id;
+            }
+            newRightGroups[groupIdx] = { ...group, panes: newPanes, activeTabId: newActive };
+          }
+        }
+        return { rightPaneGroups: newRightGroups };
+      }
+    });
+    get().saveWorkspaceState();
+  },
+
+  setRightGroupHeight: (groupId, height) => {
+    set((state) => ({
+      rightPaneGroups: state.rightPaneGroups.map(g => g.id === groupId ? { ...g, height } : g)
+    }));
     get().saveWorkspaceState();
   },
 
