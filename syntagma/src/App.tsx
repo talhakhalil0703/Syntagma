@@ -270,6 +270,52 @@ function App() {
     };
   }, []);
 
+  // Global Hotkey Listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const state = useSettingsStore.getState();
+      const hotkeys = state.hotkeys;
+
+      // Ensure we don't trigger native inputs if the user is typing
+      const activeEl = document.activeElement;
+      const isInput = activeEl?.tagName === "INPUT" || activeEl?.tagName === "TEXTAREA" || activeEl?.hasAttribute("contenteditable");
+
+      // Build key combo representation (e.g. "Mod+Shift+P")
+      const keys = [];
+      if (e.metaKey || e.ctrlKey) keys.push("Mod");
+      if (e.altKey) keys.push("Alt");
+      if (e.shiftKey) keys.push("Shift");
+      if (e.key && !['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        keys.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+      }
+      const combo = keys.join("+");
+
+      if (keys.length > 0) {
+        // Find matching command based on hotkey mappings
+        for (const [cmdId, hotkeyCmd] of Object.entries(hotkeys)) {
+          if (hotkeyCmd === combo) {
+            const command = state.commands.find(c => c.id === cmdId);
+            if (command) {
+              if (isInput && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                // If the user just pressed "P" in an input, do not run "P" hotkey.
+                continue;
+              }
+              e.preventDefault();
+              e.stopPropagation();
+              command.callback();
+              return;
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown, { capture: true });
+    };
+  }, []);
+
   // Sync Vault Index Core
   useEffect(() => {
     if (vaultPath) {

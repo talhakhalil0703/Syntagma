@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { FileSystemAPI } from "../../../utils/fs";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
+import { format } from "date-fns";
 
 export interface DailyNotesState {
     folderPath: string; // e.g. "Daily Notes/" (relative to Vault root)
@@ -14,20 +15,7 @@ export interface DailyNotesState {
     openDailyNote: (targetDate?: Date) => Promise<void>;
 }
 
-/**
- * Returns a formatted date string similar to moment.js / day.js
- * Supported tokens: YYYY, MM, DD
- */
-function formatDate(format: string, date: Date): string {
-    const year = date.getFullYear().toString();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
 
-    return format
-        .replace("YYYY", year)
-        .replace("MM", month)
-        .replace("DD", day);
-}
 
 export const useDailyNotesStore = create<DailyNotesState>((set, get) => ({
     folderPath: "Daily/",
@@ -39,12 +27,18 @@ export const useDailyNotesStore = create<DailyNotesState>((set, get) => ({
         if (!vaultPath) return;
 
         const { folderPath, dateFormat, templatePath } = get();
-        const dateStr = formatDate(dateFormat, targetDate || new Date());
+        // Use true date-fns string formatter
+        const dateStr = format(targetDate || new Date(), dateFormat);
 
         // Normalize paths
         const normalizedFolder = folderPath.trim().replace(/^\/+/, '').replace(/\/+$/, '');
-        const fullDirName = `${vaultPath}${normalizedFolder ? '/' + normalizedFolder : ''}`;
-        const fileName = `${dateStr}.md`;
+        const baseDir = `${vaultPath}${normalizedFolder ? '/' + normalizedFolder : ''}`;
+
+        // Handle dates with slashes (subdirectories)
+        const dateParts = dateStr.split("/");
+        const fileName = `${dateParts.pop()}.md`;
+
+        const fullDirName = dateParts.length > 0 ? `${baseDir}/${dateParts.join("/")}` : baseDir;
         const fullPath = `${fullDirName}/${fileName}`;
 
         // 1. Check if the note already exists
@@ -70,7 +64,7 @@ export const useDailyNotesStore = create<DailyNotesState>((set, get) => ({
             }
 
             // Create Directory if it doesn't exist
-            if (normalizedFolder) {
+            if (fullDirName !== vaultPath) {
                 const dirStat = await FileSystemAPI.stat(fullDirName);
                 if (!dirStat) {
                     await FileSystemAPI.mkdir(fullDirName);

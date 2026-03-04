@@ -75,10 +75,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     openSettings: () => set({ isSettingsOpen: true }),
     closeSettings: () => set({ isSettingsOpen: false }),
 
-    registerCommand: (cmd) => set((state) => ({ commands: [...state.commands, cmd] })),
+    registerCommand: (cmd) => set((state) => {
+        if (state.commands.some(c => c.id === cmd.id)) return state;
+        return { commands: [...state.commands, cmd] };
+    }),
     unregisterCommand: (cmdId) => set((state) => ({ commands: state.commands.filter(c => c.id !== cmdId) })),
 
-    registerSettingTab: (tab) => set((state) => ({ pluginSettingsTabs: [...state.pluginSettingsTabs, tab] })),
+    registerSettingTab: (tab) => set((state) => {
+        if (state.pluginSettingsTabs.some(t => t.id === tab.id)) return state;
+        return { pluginSettingsTabs: [...state.pluginSettingsTabs, tab] };
+    }),
     unregisterSettingTab: (tabId) => set((state) => ({ pluginSettingsTabs: state.pluginSettingsTabs.filter(t => t.id !== tabId) })),
 
     setHotkey: (commandId, hotkey) => {
