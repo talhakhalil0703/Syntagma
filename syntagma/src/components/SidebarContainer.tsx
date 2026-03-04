@@ -12,15 +12,26 @@ import { SidebarNoteView } from "./SidebarNoteView";
 import { FileText } from "lucide-react";
 
 interface SidebarProps {
-  id: "left" | "right";
+  id: string;
   panes: PaneItem[];
 }
 
 export const SidebarContainer: React.FC<SidebarProps> = ({ id, panes }) => {
   const { setNodeRef } = useDroppable({ id });
 
-  const activePaneId = useWorkspaceStore(state => id === "left" ? state.activeLeftPaneId : state.activeRightPaneId);
-  const setActivePane = id === "left" ? useWorkspaceStore.getState().setActiveLeftPane : useWorkspaceStore.getState().setActiveRightPane;
+  const activePaneId = useWorkspaceStore(state => {
+    if (id === "left") return state.activeLeftPaneId;
+    const group = state.rightPaneGroups.find(g => g.id === id);
+    return group ? group.activeTabId : null;
+  });
+
+  const setActivePane = (paneId: string) => {
+    if (id === "left") {
+      useWorkspaceStore.getState().setActiveLeftPane(paneId);
+    } else {
+      useWorkspaceStore.getState().setActiveRightPane(id, paneId);
+    }
+  };
 
   const activePane = activePaneId ? panes.find(p => p.id === activePaneId) : panes[0];
   const currentActivePane = activePane || panes[0];

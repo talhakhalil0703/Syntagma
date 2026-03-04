@@ -54,6 +54,21 @@ export const FileSystemAPI = {
         }
     },
 
+    async readImageBase64(filePath: string): Promise<string | null> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return null;
+            const res = await ipc.invoke('fs:readImageBase64', { filePath });
+            if (res.success) {
+                return res.dataUrl;
+            }
+            return null;
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    },
+
     async getVaultPath(): Promise<string> {
         const ipc = getIpcRenderer();
         if (!ipc) return "";

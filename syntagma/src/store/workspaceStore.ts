@@ -10,6 +10,12 @@ export interface PaneItem {
   noteId?: string;
 }
 
+export interface PaneGroup {
+  id: string;
+  panes: PaneItem[];
+  activeTabId: string | null;
+}
+
 export interface TabItem {
   id: string;
   title: string;
@@ -22,21 +28,19 @@ interface WorkspaceState {
   leftSidebarOpen: boolean;
   rightSidebarOpen: boolean;
   leftPanes: PaneItem[];
-  rightPanes: PaneItem[];
+  rightPaneGroups: PaneGroup[];
   activeLeftPaneId: string | null;
-  activeRightPaneId: string | null;
 
   // Tab State
   openTabs: TabItem[];
   activeTabId: string | null;
   viewMode: "source" | "live";
 
-  // Actions
   toggleLeftSidebar: () => void;
   toggleRightSidebar: () => void;
   setActiveLeftPane: (id: string) => void;
-  setActiveRightPane: (id: string) => void;
-  movePane: (paneId: string, sourceSidebar: "left" | "right", destSidebar: "left" | "right", newIndex: number) => void;
+  setActiveRightPane: (groupId: string, paneId: string) => void;
+  movePane: (paneId: string, sourceId: string, destId: string, newIndex: number) => void;
   addNoteToSidebar: (noteId: string, title: string, sidebar: "left" | "right") => void;
 
   openTab: (tab: TabItem) => void;
@@ -90,9 +94,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   leftSidebarOpen: true,
   rightSidebarOpen: true,
   leftPanes: initialLeftPanes,
-  rightPanes: initialRightPanes,
+  rightPaneGroups: [{
+    id: "right-group-1",
+    panes: initialRightPanes,
+    activeTabId: initialRightPanes[0]?.id || null
+  }],
   activeLeftPaneId: initialLeftPanes[0]?.id || null,
-  activeRightPaneId: initialRightPanes[0]?.id || null,
 
   openTabs: [{ id: "welcome", title: "Untitled Note.md" }],
   activeTabId: "welcome",
@@ -110,8 +117,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     set({ activeLeftPaneId: id });
     useWorkspaceStore.getState().saveWorkspaceState();
   },
-  setActiveRightPane: (id) => {
-    set({ activeRightPaneId: id });
+  setActiveRightPane: (groupId, paneId) => {
+    set((state) => {
+      const newGroups = state.rightPaneGroups.map(g => {
+        if (g.id === groupId) {
+          return { ...g, activeTabId: paneId };
+        }
+        return g;
+      });
+      return { rightPaneGroups: newGroups };
+    });
     useWorkspaceStore.getState().saveWorkspaceState();
   },
   addNoteToSidebar: (noteId, title, sidebar) => {
@@ -125,33 +140,76 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       if (sidebar === "left") {
         return { leftPanes: [...state.leftPanes, newPane], activeLeftPaneId: newPane.id, leftSidebarOpen: true };
       } else {
-        return { rightPanes: [...state.rightPanes, newPane], activeRightPaneId: newPane.id, rightSidebarOpen: true };
+        const groups = [...state.rightPaneGroups];
+        if (groups.length === 0) {
+          groups.push({ id: `right-group-${Date.now()}`, panes: [newPane], activeTabId: newPane.id });
+        } else {
+          groups[0] = { ...groups[0], panes: [...groups[0].panes, newPane], activeTabId: newPane.id };
+        }
+        return { rightPaneGroups: groups, rightSidebarOpen: true };
       }
     });
     useWorkspaceStore.getState().saveWorkspaceState();
   },
 
-  movePane: (paneId, source, dest, newIndex) => {
+  movePane: (paneId, sourceId, destId, newIndex) => {
     set((state) => {
-      const sourceArray = source === "left" ? state.leftPanes : state.rightPanes;
-      const paneIndex = sourceArray.findIndex((p) => p.id === paneId);
-      if (paneIndex === -1) return state;
+      let sourcePane: PaneItem | null = null;
+      let newLeftPanes = [...state.leftPanes];
+      let newRightGroups = state.rightPaneGroups.map(g => ({ ...g, panes: [...g.panes] }));
 
-      const pane = sourceArray[paneIndex];
-      const newLeft = [...state.leftPanes];
-      const newRight = [...state.rightPanes];
+      // 1. Find and Extract
+      if (sourceId === "left") {
+        const idx = newLeftPanes.findIndex(p => p.id === paneId);
+        if (idx !== -1) {
+          sourcePane = newLeftPanes[idx];
+          newLeftPanes.splice(idx, 1);
+        }
+      } else {
+        const groupIdx = newRightGroups.findIndex(g => g.id === sourceId);
+        if (groupIdx !== -1) {
+          const idx = newRightGroups[groupIdx].panes.findIndex(p => p.id === paneId);
+          if (idx !== -1) {
+            sourcePane = newRightGroups[groupIdx].panes[idx];
+            newRightGroups[groupIdx].panes.splice(idx, 1);
+            if (newRightGroups[groupIdx].panes.length === 0) {
+              newRightGroups.splice(groupIdx, 1);
+            }
+          }
+        }
+      }
 
-      if (source === "left") newLeft.splice(paneIndex, 1);
-      else newRight.splice(paneIndex, 1);
+      if (!sourcePane) return state;
 
-      if (dest === "left") newLeft.splice(newIndex, 0, pane);
-      else newRight.splice(newIndex, 0, pane);
+      // 2. Insert into Dest
+      const destIsLeft = destId === "left";
+      if (destIsLeft) {
+        newLeftPanes.splice(newIndex, 0, sourcePane);
+      } else if (destId === "new-right-group") {
+        newRightGroups.push({
+          id: `right-group-${Date.now()}`,
+          panes: [sourcePane],
+          activeTabId: sourcePane.id
+        });
+      } else {
+        const destGroupIdx = newRightGroups.findIndex(g => g.id === destId);
+        if (destGroupIdx !== -1) {
+          newRightGroups[destGroupIdx].panes.splice(newIndex, 0, sourcePane);
+          newRightGroups[destGroupIdx].activeTabId = sourcePane.id;
+        } else {
+          newRightGroups.push({
+            id: destId,
+            panes: [sourcePane],
+            activeTabId: sourcePane.id
+          });
+        }
+      }
 
       return {
-        leftPanes: newLeft,
-        rightPanes: newRight,
-        ...(dest === "left" && !state.leftSidebarOpen ? { leftSidebarOpen: true } : {}),
-        ...(dest === "right" && !state.rightSidebarOpen ? { rightSidebarOpen: true } : {}),
+        leftPanes: newLeftPanes,
+        rightPaneGroups: newRightGroups,
+        ...(destIsLeft && !state.leftSidebarOpen ? { leftSidebarOpen: true } : {}),
+        ...(!destIsLeft && !state.rightSidebarOpen ? { rightSidebarOpen: true } : {}),
       };
     });
     useWorkspaceStore.getState().saveWorkspaceState();
@@ -235,13 +293,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     if (data) {
       try {
         const parsed = JSON.parse(data);
+
+        let loadedRightGroups = parsed.rightPaneGroups;
+        if (!loadedRightGroups && parsed.rightPanes) {
+          loadedRightGroups = [{ id: "right-group-1", panes: parsed.rightPanes, activeTabId: parsed.activeRightPaneId || null }];
+        }
+
         set({
           leftSidebarOpen: parsed.leftSidebarOpen ?? true,
           rightSidebarOpen: parsed.rightSidebarOpen ?? true,
           leftPanes: parsed.leftPanes || initialLeftPanes,
-          rightPanes: parsed.rightPanes || initialRightPanes,
+          rightPaneGroups: loadedRightGroups || [{ id: "right-group-1", panes: initialRightPanes, activeTabId: initialRightPanes[0]?.id || null }],
           activeLeftPaneId: parsed.activeLeftPaneId || initialLeftPanes[0]?.id || null,
-          activeRightPaneId: parsed.activeRightPaneId || initialRightPanes[0]?.id || null,
           openTabs: parsed.openTabs || [{ id: "welcome", title: "Untitled Note.md" }],
           activeTabId: parsed.activeTabId || "welcome",
           viewMode: parsed.viewMode || "live",
@@ -261,9 +324,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       leftSidebarOpen: state.leftSidebarOpen,
       rightSidebarOpen: state.rightSidebarOpen,
       leftPanes: state.leftPanes,
-      rightPanes: state.rightPanes,
+      rightPaneGroups: state.rightPaneGroups,
       activeLeftPaneId: state.activeLeftPaneId,
-      activeRightPaneId: state.activeRightPaneId,
       openTabs: state.openTabs,
       activeTabId: state.activeTabId,
       viewMode: state.viewMode,

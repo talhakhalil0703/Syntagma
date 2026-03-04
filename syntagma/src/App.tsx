@@ -5,12 +5,13 @@ import {
   closestCorners,
   KeyboardSensor,
   PointerSensor,
-  useSensor,
-  useSensors,
   type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
   defaultDropAnimationSideEffects,
+  useDroppable,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useWorkspaceStore, type PaneItem } from "./store/workspaceStore";
@@ -28,12 +29,11 @@ import {
   Bookmark,
   Settings,
   Database,
-  GitBranch,
-  X,
   Plus,
-  Calendar,
   Pin,
-  Code
+  Code,
+  X,
+  GitBranch
 } from "lucide-react";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsModal } from "./components/SettingsModal";
@@ -57,7 +57,6 @@ import ExcalidrawPlugin from "./plugins/core/excalidraw/ExcalidrawPlugin";
 import { BrowserView } from "./plugins/core/browser/BrowserView";
 import { ExcalidrawView } from "./plugins/core/excalidraw/ExcalidrawView";
 import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
-import { useDailyNotesStore } from "./plugins/core/daily/dailyNotesStore";
 import { FileSystemAPI } from "./utils/fs";
 import "./styles/layout.css";
 
@@ -66,7 +65,7 @@ function App() {
     leftSidebarOpen,
     rightSidebarOpen,
     leftPanes,
-    rightPanes,
+    rightPaneGroups,
     openTabs,
     activeTabId,
     toggleLeftSidebar,
@@ -277,7 +276,8 @@ function App() {
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const pane = [...leftPanes, ...rightPanes].find((p) => p.id === active.id);
+    const allRightPanes = rightPaneGroups.flatMap(g => g.panes);
+    const pane = [...leftPanes, ...allRightPanes].find((p) => p.id === active.id);
     if (pane) setActivePane(pane);
   };
 
@@ -289,44 +289,55 @@ function App() {
   const handleDragEnd = (event: DragEndEvent) => {
     setActivePane(null);
     const { active, over } = event;
-
     if (!over) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    // Find what container the active item started in
-    const activeContainer = leftPanes.find((p) => p.id === activeId)
-      ? "left"
-      : "right";
-
-    // Find what container the drop target is in (could be a pane, or the empty sidebar container itself)
-    let overContainer = overId === "left" || overId === "right" ? overId : null;
-
-    if (!overContainer) {
-      overContainer = leftPanes.find((p) => p.id === overId) ? "left" : "right";
+    // 1. Find source container ID
+    let sourceId: string | null = null;
+    if (leftPanes.some(p => p.id === activeId)) sourceId = "left";
+    else {
+      const g = rightPaneGroups.find(g => g.panes.some(p => p.id === activeId));
+      if (g) sourceId = g.id;
     }
+    if (!sourceId) return;
 
-    if (!overContainer) return;
+    // 2. Find dest container ID
+    let destId: string | null = null;
+    if (overId === "left") destId = "left";
+    else if (overId === "new-right-group") destId = "new-right-group";
+    else if (rightPaneGroups.some(g => g.id === overId)) destId = overId;
+    else {
+      if (leftPanes.some(p => p.id === overId)) destId = "left";
+      else {
+        const g = rightPaneGroups.find(g => g.panes.some(p => p.id === overId));
+        if (g) destId = g.id;
+      }
+    }
+    if (!destId) return;
 
-    // If we dropped over a pane, find its index. Otherwise append to the end.
+    // 3. Find dest index
     let targetIndex = -1;
-    if (overId !== "left" && overId !== "right") {
-      const overArray = overContainer === "left" ? leftPanes : rightPanes;
-      targetIndex = overArray.findIndex((p) => p.id === overId);
+    if (overId !== destId && overId !== "new-right-group") {
+      if (destId === "left") {
+        targetIndex = leftPanes.findIndex(p => p.id === overId);
+      } else {
+        const g = rightPaneGroups.find(g => g.id === destId);
+        targetIndex = g ? g.panes.findIndex(p => p.id === overId) : -1;
+      }
     } else {
-      targetIndex =
-        overContainer === "left" ? leftPanes.length : rightPanes.length;
+      if (destId === "left") targetIndex = leftPanes.length;
+      else if (destId === "new-right-group") targetIndex = 0;
+      else {
+        const g = rightPaneGroups.find(g => g.id === destId);
+        targetIndex = g ? g.panes.length : 0;
+      }
     }
 
-    if (activeContainer === overContainer && activeId === overId) return;
+    if (sourceId === destId && activeId === overId) return;
 
-    movePane(
-      activeId,
-      activeContainer,
-      overContainer as "left" | "right",
-      targetIndex,
-    );
+    movePane(activeId, sourceId, destId, targetIndex);
   };
 
   return (
@@ -339,41 +350,22 @@ function App() {
     >
       <div className="app-root">
         <div className="app-main">
-          {/* Left Activity Ribbon */}
-          <div className="activity-ribbon">
-            <button className="icon-btn" title="Explorer"><Files size={24} /></button>
-            <button className="icon-btn" title="Search"><Search size={24} /></button>
-            <button className="icon-btn" title="Bookmarks"><Bookmark size={24} /></button>
-            <button
-              className="icon-btn"
-              title="Daily Note"
-              onClick={() => useDailyNotesStore.getState().openDailyNote()}
-            >
-              <Calendar size={24} />
-            </button>
-
-            <div className="spacer" />
-
-            <button className="icon-btn" title="Open Vault" onClick={openVault}><Database size={24} /></button>
-            <button className="icon-btn" title="Settings" onClick={openSettings}><Settings size={24} /></button>
-          </div>
-
           <div className="app-container">
             {/* Left Sidebar */}
             {leftSidebarOpen && (
               <aside className="sidebar left">
-                <div className="header">
-                  <span
-                    style={{
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <PenTool size={18} color="var(--text-accent)" />
-                    Syntagma
-                  </span>
+                <div className="header" style={{ paddingLeft: "76px" }}>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    <button className="icon-btn" title="Explorer" onClick={() => {
+                      useWorkspaceStore.getState().setActiveLeftPane("pane-file-explorer");
+                    }}><Files size={18} /></button>
+                    <button className="icon-btn" title="Search" onClick={() => {
+                      useWorkspaceStore.getState().setActiveLeftPane("pane-search");
+                    }}><Search size={18} /></button>
+                    <button className="icon-btn" title="Bookmarks" onClick={() => {
+                      useWorkspaceStore.getState().setActiveLeftPane("pane-bookmarks");
+                    }}><Bookmark size={18} /></button>
+                  </div>
                   <button
                     className="icon-btn"
                     onClick={toggleLeftSidebar}
@@ -384,6 +376,12 @@ function App() {
                 </div>
                 {/* Draggable Sidebar Content */}
                 <SidebarContainer id="left" panes={leftPanes} />
+
+                {/* Left Sidebar Footer for Settings/Vault */}
+                <div className="sidebar-footer">
+                  <button className="icon-btn" title="Open Vault" onClick={openVault}><Database size={18} /></button>
+                  <button className="icon-btn" title="Settings" onClick={openSettings}><Settings size={18} /></button>
+                </div>
               </aside>
             )}
 
@@ -391,7 +389,10 @@ function App() {
             <main className="workspace-content">
               <header
                 className="header"
-                style={{ justifyContent: "space-between" }}
+                style={{
+                  justifyContent: "space-between",
+                  paddingLeft: !leftSidebarOpen ? "76px" : "16px"
+                }}
               >
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   {!leftSidebarOpen && (
@@ -512,9 +513,9 @@ function App() {
 
             {/* Right Sidebar */}
             {rightSidebarOpen && (
-              <aside className="sidebar right">
+              <aside className="sidebar right" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                 <div className="header">
-                  <span style={{ fontWeight: 600 }}>Properties</span>
+                  <span style={{ fontWeight: 600 }}>Tools</span>
                   <button
                     className="icon-btn"
                     onClick={toggleRightSidebar}
@@ -523,8 +524,18 @@ function App() {
                     <PanelRightClose size={18} />
                   </button>
                 </div>
-                {/* Draggable Sidebar Content */}
-                <SidebarContainer id="right" panes={rightPanes} />
+                {/* Draggable Sidebar Content Groups */}
+                <div style={{ flexGrow: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+                  {rightPaneGroups.map(group => (
+                    <div key={group.id} style={{ display: "flex", flexDirection: "column", flexGrow: 1, minHeight: "200px" }}>
+                      <SidebarContainer
+                        id={group.id}
+                        panes={group.panes}
+                      />
+                    </div>
+                  ))}
+                  <EmptyRightDropZone />
+                </div>
               </aside>
             )}
           </div>
@@ -580,3 +591,29 @@ function App() {
 }
 
 export default App;
+
+const EmptyRightDropZone = () => {
+  const { setNodeRef, isOver } = useDroppable({ id: "new-right-group" });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        padding: "16px",
+        minHeight: "40px",
+        height: isOver ? "100px" : "40px",
+        border: "2px dashed var(--bg-border)",
+        margin: "8px",
+        borderRadius: "8px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--text-secondary)",
+        transition: "all 0.2s ease",
+        opacity: isOver ? 1 : 0.5,
+        backgroundColor: isOver ? "var(--bg-tertiary)" : "transparent"
+      }}
+    >
+      Drop here to create a new split
+    </div>
+  );
+};

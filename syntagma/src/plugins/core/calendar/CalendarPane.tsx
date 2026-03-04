@@ -122,6 +122,7 @@ export function CalendarPane() {
                                 backgroundColor: isToday ? 'var(--text-accent)' : (hasNote ? 'var(--bg-tertiary)' : 'transparent'),
                                 transition: 'all 0.1s ease',
                                 border: isToday ? 'none' : '1px solid transparent',
+                                position: 'relative'
                             }}
                             onMouseEnter={(e) => {
                                 if (!isToday) e.currentTarget.style.border = '1px solid var(--text-accent)';
@@ -132,6 +133,16 @@ export function CalendarPane() {
                             title={hasNote ? `Open Note: ${dateStr}` : `Create Note: ${dateStr}`}
                         >
                             {day.date()}
+                            {hasNote && (
+                                <div style={{
+                                    width: '4px',
+                                    height: '4px',
+                                    borderRadius: '50%',
+                                    backgroundColor: isToday ? 'var(--bg-primary)' : 'var(--text-accent)',
+                                    position: 'absolute',
+                                    bottom: '2px'
+                                }} />
+                            )}
                         </div>
                     );
                 })}

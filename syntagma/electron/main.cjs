@@ -78,6 +78,33 @@ ipcMain.handle('fs:readFile', async (event, { filePath }) => {
     }
 });
 
+// Read image as Base64 utility (for CodeMirror inline embedding)
+ipcMain.handle('fs:readImageBase64', async (event, { filePath }) => {
+    try {
+        if (!fs.existsSync(filePath)) {
+            return { success: false, error: "File not found" };
+        }
+
+        const ext = path.extname(filePath).toLowerCase().substring(1) || 'png';
+        const validExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
+        if (!validExts.includes(ext)) {
+            return { success: false, error: "Unsupported image format" };
+        }
+
+        let mimeType = `image/${ext}`;
+        if (ext === 'jpg') mimeType = 'image/jpeg';
+        if (ext === 'svg') mimeType = 'image/svg+xml';
+
+        const buffer = await fsPromises.readFile(filePath);
+        const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+        return { success: true, dataUrl };
+    } catch (error) {
+        console.error("Failed to read image:", error);
+        return { success: false, error: error.message };
+    }
+});
+
 // Read directory utility
 ipcMain.handle('fs:readDir', async (event, { dirPath }) => {
     try {

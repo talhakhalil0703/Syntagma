@@ -5,12 +5,62 @@ import {
     EditorView,
     ViewPlugin,
     ViewUpdate,
+    WidgetType
 } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
+import { FileSystemAPI } from "../../utils/fs";
+import { useWorkspaceStore } from "../../store/workspaceStore";
 
 // Hide decoration for syntax markers
 export const hideMarkDeco = Decoration.replace({});
+
+class ImageWidget extends WidgetType {
+    src: string;
+
+    constructor(src: string) {
+        super();
+        this.src = src;
+    }
+
+    eq(other: ImageWidget) {
+        return this.src === other.src;
+    }
+
+    toDOM() {
+        const wrap = document.createElement("span");
+        wrap.className = "cm-image-widget";
+
+        const img = document.createElement("img");
+        img.style.maxWidth = "100%";
+        img.style.maxHeight = "600px";
+        img.style.borderRadius = "4px";
+        img.style.marginTop = "8px";
+        img.style.marginBottom = "8px";
+        img.style.display = "block";
+        img.alt = this.src;
+
+        const vaultPath = useWorkspaceStore.getState().vaultPath;
+        if (vaultPath && this.src) {
+            // Remove 'Attachments/' prefix if user implicitly uses it, 
+            // but for safety we just append whatever they wrote.
+            // Some users type `![[image.png]]` or `![[Attachments/image.png]]`.
+            // The searchVault or pure relative might be better, but we assume exact relative path for now.
+            const fullPath = `${vaultPath}/${this.src}`;
+            FileSystemAPI.readImageBase64(fullPath).then(base64 => {
+                if (base64) {
+                    img.src = base64;
+                } else {
+                    // Fallback visual
+                    img.alt = "Image not found: " + this.src;
+                }
+            });
+        }
+
+        wrap.appendChild(img);
+        return wrap;
+    }
+}
 
 export function buildDecorations(view: EditorView) {
     const decorations: { from: number; to: number; deco: Decoration; isLine: boolean }[] = [];
@@ -86,6 +136,32 @@ export function buildDecorations(view: EditorView) {
                 }
             },
         });
+
+        // --- Regex parsing for Wikilinks and Images ---
+        const text = state.sliceDoc(from, to);
+
+        // ![[image]]
+        const imageRegex = /!\[\[([^\]]+)\]\]/g;
+        let m;
+        while ((m = imageRegex.exec(text)) !== null) {
+            const matchFrom = from + m.index;
+            const matchTo = matchFrom + m[0].length;
+            if (!isCursorInside(matchFrom, matchTo)) {
+                decorations.push({
+                    from: matchFrom,
+                    to: matchTo,
+                    deco: Decoration.replace({ widget: new ImageWidget(m[1]) }),
+                    isLine: false
+                });
+            } else {
+                decorations.push({
+                    from: matchFrom,
+                    to: matchTo,
+                    deco: Decoration.mark({ class: "cm-wikilink-edit" }),
+                    isLine: false
+                });
+            }
+        }
     }
 
     // Sort decorations by `from`, then `to` ascending to satisfy RangeSetBuilder
@@ -162,6 +238,10 @@ const livePreviewTheme = EditorView.theme({
         padding: "2px 4px",
         borderRadius: "4px",
         fontSize: "0.9em",
+    },
+    ".cm-wikilink-edit": {
+        color: "var(--text-accent)",
+        opacity: 0.8
     }
 });
 
