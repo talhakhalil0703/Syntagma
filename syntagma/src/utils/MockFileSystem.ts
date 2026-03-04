@@ -93,9 +93,25 @@ export class MockFileSystem {
     }
 
     async deleteFile(filePath: string): Promise<boolean> {
-        const res = this.files.delete(filePath);
-        this.save();
-        return res;
+        let deleted = false;
+        // Delete exact file match
+        if (this.files.delete(filePath)) deleted = true;
+        // Delete all files under this path (directory delete)
+        for (const key of Array.from(this.files.keys())) {
+            if (key.startsWith(filePath + '/')) {
+                this.files.delete(key);
+                deleted = true;
+            }
+        }
+        // Delete the directory itself and subdirectories
+        for (const dir of Array.from(this.dirs)) {
+            if (dir === filePath || dir.startsWith(filePath + '/')) {
+                this.dirs.delete(dir);
+                deleted = true;
+            }
+        }
+        if (deleted) this.save();
+        return deleted;
     }
 
     async getVaultPath(): Promise<string> {
@@ -123,6 +139,26 @@ export class MockFileSystem {
     }
 
     async copyFile(source: string, destination: string): Promise<boolean> {
+        // Check if source is a directory
+        if (this.dirs.has(source)) {
+            // Recursive directory copy
+            this.dirs.add(destination);
+            for (const dir of Array.from(this.dirs)) {
+                if (dir.startsWith(source + '/')) {
+                    const newDir = destination + dir.slice(source.length);
+                    this.dirs.add(newDir);
+                }
+            }
+            for (const [path, content] of Array.from(this.files.entries())) {
+                if (path.startsWith(source + '/')) {
+                    const newPath = destination + path.slice(source.length);
+                    this.files.set(newPath, content);
+                }
+            }
+            this.save();
+            return true;
+        }
+        // Single file copy
         const content = await this.readFile(source);
         if (content !== null) {
             return this.writeFile(destination, content);

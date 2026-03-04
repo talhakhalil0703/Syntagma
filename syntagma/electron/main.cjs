@@ -283,13 +283,18 @@ ipcMain.handle('fs:mkdir', async (event, { dirPath }) => {
     }
 });
 
-// Delete file utility (used by tab rename)
+// Delete file or directory utility
 ipcMain.handle('fs:deleteFile', async (event, { filePath }) => {
     try {
         if (!fs.existsSync(filePath)) {
             return { success: false, error: "File not found" };
         }
-        await fsPromises.unlink(filePath);
+        const stats = await fsPromises.stat(filePath);
+        if (stats.isDirectory()) {
+            await fsPromises.rm(filePath, { recursive: true, force: true });
+        } else {
+            await fsPromises.unlink(filePath);
+        }
         return { success: true };
     } catch (error) {
         console.error("Failed to delete file:", error);
@@ -297,12 +302,18 @@ ipcMain.handle('fs:deleteFile', async (event, { filePath }) => {
     }
 });
 
-// Copy file utility
+// Copy file or directory utility
 ipcMain.handle('fs:copyFile', async (event, { source, destination }) => {
     try {
-        await fsPromises.copyFile(source, destination);
+        const stats = await fsPromises.stat(source);
+        if (stats.isDirectory()) {
+            await fsPromises.cp(source, destination, { recursive: true });
+        } else {
+            await fsPromises.copyFile(source, destination);
+        }
         return { success: true };
     } catch (error) {
+        console.error("Failed to copy:", error);
         return { success: false, error: error.message };
     }
 });

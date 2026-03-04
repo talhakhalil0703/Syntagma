@@ -9,6 +9,11 @@
     background-color: var(--bg-tertiary, #2a2a2a);
 }
 
+.file-explorer-item.selected {
+    background-color: var(--bg-tertiary, #2a2a2a);
+    border-left: 2px solid var(--text-accent, #7c3aed);
+}
+
 /* File explorer top bar styling */
 .explorer-top-bar {
     display: flex;
@@ -35,4 +40,21 @@
 .explorer-top-bar .icon-btn:hover {
     background-color: var(--bg-tertiary, #2a2a2a);
     color: var(--text-primary, #ffffff);
+}
+
+/* Drop target highlight for folders during drag */
+.file-explorer-item.drop-target {
+    background-color: rgba(124, 58, 237, 0.15);
+    outline: 1px dashed rgba(124, 58, 237, 0.5);
+    outline-offset: -1px;
+}
+
+/* Selection box (marquee) overlay */
+.selection-box {
+    position: absolute;
+    background: rgba(124, 58, 237, 0.12);
+    border: 1px solid rgba(124, 58, 237, 0.4);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 10;
 }

@@ -372,10 +372,19 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
 
             {/* Editor Content */}
             <div style={{ flexGrow: 1, width: "100%", height: "100%", overflow: "auto" }}>
-                {loadedContentId !== activeTabId && activeTabId ? (
+                {!activeTabId || group.tabs.length === 0 ? (
+                    <div style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        height: '100%', color: 'var(--text-secondary)', userSelect: 'none', gap: '8px'
+                    }}>
+                        <PenTool size={40} style={{ opacity: 0.2, marginBottom: '8px' }} />
+                        <div style={{ fontSize: '16px', fontWeight: 500, opacity: 0.5 }}>No file open</div>
+                        <div style={{ fontSize: '13px', opacity: 0.35 }}>Open a file from the explorer or press ⌘O</div>
+                    </div>
+                ) : loadedContentId !== activeTabId ? (
                     <div style={{ padding: '24px', color: 'var(--text-secondary)' }}>Loading content...</div>
                 ) : activeTabId?.startsWith("browser-") ? (
-                    <BrowserView /> // Note: browser view uses global activeTabId usually, might need adjustment later
+                    <BrowserView />
                 ) : (activeTabId?.endsWith(".excalidraw") || activeTabId?.endsWith(".excalidraw.md")) ? (
                     <ExcalidrawView key={activeTabId} fileId={activeTabId} fileContent={fileContent} onChange={(val) => handleEditorChange(val, activeTabId)} />
                 ) : (

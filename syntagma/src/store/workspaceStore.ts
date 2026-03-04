@@ -80,6 +80,8 @@ interface WorkspaceState {
   splitGroup: (groupId: string, direction: SplitDirection) => void;
 
   renameTab: (oldId: string, newId: string, newTitle: string) => void;
+  closeTabById: (tabId: string) => void;
+  closeTabsMatchingPrefix: (prefix: string) => void;
 
   toggleViewMode: () => void;
 
@@ -106,8 +108,8 @@ const initialRightPanes: PaneItem[] = [
 
 const createDefaultGroup = (): EditorGroup => ({
   id: `group-${Date.now()}`,
-  tabs: [{ id: "welcome", title: "Untitled Note.md" }],
-  activeTabId: "welcome"
+  tabs: [],
+  activeTabId: null
 });
 
 const createDefaultRoot = (): SplitNode => {
@@ -276,32 +278,46 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     // Replaces the active tab in the active group, or appends if that tab is "welcome"
     set((state) => {
       const newRoot = cloneNode(state.rootSplit);
-      const targetGroupId = state.activeGroupId || findFirstLeaf(newRoot)?.group?.id;
+      // Try activeGroupId first, then fall back to any available leaf
+      let groupNode = state.activeGroupId ? findNodeByGroupId(newRoot, state.activeGroupId) : null;
+      if (!groupNode) {
+        groupNode = findFirstLeaf(newRoot);
+      }
+      const targetGroupId = groupNode?.group?.id;
 
-      if (!targetGroupId) return state; // Should not happen
+      if (!targetGroupId || !groupNode?.group) {
+        // No groups exist — create a fresh leaf with this tab
+        const newGroup: EditorGroup = {
+          id: `group-${Date.now()}`,
+          tabs: [tab],
+          activeTabId: tab.id
+        };
+        const newLeaf: SplitNode = {
+          id: `split-${Date.now()}`,
+          type: 'leaf',
+          group: newGroup
+        };
+        return { rootSplit: newLeaf, activeGroupId: newGroup.id };
+      }
 
-      const groupNode = findNodeByGroupId(newRoot, targetGroupId);
-      if (groupNode && groupNode.group) {
-        // Check if tab already exists
-        const existingIdx = groupNode.group.tabs.findIndex(t => t.id === tab.id);
-        if (existingIdx !== -1) {
-          groupNode.group.activeTabId = tab.id;
+      const group = groupNode.group;
+      // Check if tab already exists
+      const existingIdx = group.tabs.findIndex(t => t.id === tab.id);
+      if (existingIdx !== -1) {
+        group.activeTabId = tab.id;
+      } else {
+        // If active is "welcome" or start page, replace it
+        const activeIdx = group.tabs.findIndex(t => t.id === group.activeTabId);
+        if (activeIdx !== -1 && (group.tabs[activeIdx].id === "welcome" || group.tabs[activeIdx].id.startsWith("tab-"))) {
+          group.tabs.splice(activeIdx, 1, tab);
         } else {
-          // If active is "welcome" or start page, replace it
-          const activeIdx = groupNode.group.tabs.findIndex(t => t.id === groupNode.group!.activeTabId);
-          if (activeIdx !== -1 && (groupNode.group.tabs[activeIdx].id === "welcome" || groupNode.group.tabs[activeIdx].id.startsWith("tab-"))) {
-            groupNode.group.tabs.splice(activeIdx, 1, tab);
+          if (activeIdx !== -1) {
+            group.tabs.splice(activeIdx, 1, tab);
           } else {
-            // Standard open is replace active, if not "pinned/protected" (for now we always replace active, UNLESS it's marked otherwise, but let's just append or replace based on Obsidian's default).
-            // Obsidian default: clicking FileExplorer overrides current tab. Let's replace the currently active one always for openTab.
-            if (activeIdx !== -1) {
-              groupNode.group.tabs.splice(activeIdx, 1, tab);
-            } else {
-              groupNode.group.tabs.push(tab);
-            }
+            group.tabs.push(tab);
           }
-          groupNode.group.activeTabId = tab.id;
         }
+        group.activeTabId = tab.id;
       }
       return { rootSplit: newRoot, activeGroupId: targetGroupId };
     });
@@ -312,18 +328,32 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     // Appends to the active group
     set((state) => {
       const newRoot = cloneNode(state.rootSplit);
-      const targetGroupId = state.activeGroupId || findFirstLeaf(newRoot)?.group?.id;
-      if (!targetGroupId) return state;
+      let groupNode = state.activeGroupId ? findNodeByGroupId(newRoot, state.activeGroupId) : null;
+      if (!groupNode) {
+        groupNode = findFirstLeaf(newRoot);
+      }
+      const targetGroupId = groupNode?.group?.id;
 
-      const groupNode = findNodeByGroupId(newRoot, targetGroupId);
-      if (groupNode && groupNode.group) {
-        const existingIdx = groupNode.group.tabs.findIndex(t => t.id === tab.id);
-        if (existingIdx !== -1) {
-          groupNode.group.activeTabId = tab.id;
-        } else {
-          groupNode.group.tabs.push(tab);
-          groupNode.group.activeTabId = tab.id;
-        }
+      if (!targetGroupId || !groupNode?.group) {
+        const newGroup: EditorGroup = {
+          id: `group-${Date.now()}`,
+          tabs: [tab],
+          activeTabId: tab.id
+        };
+        const newLeaf: SplitNode = {
+          id: `split-${Date.now()}`,
+          type: 'leaf',
+          group: newGroup
+        };
+        return { rootSplit: newLeaf, activeGroupId: newGroup.id };
+      }
+
+      const existingIdx = groupNode.group.tabs.findIndex(t => t.id === tab.id);
+      if (existingIdx !== -1) {
+        groupNode.group.activeTabId = tab.id;
+      } else {
+        groupNode.group.tabs.push(tab);
+        groupNode.group.activeTabId = tab.id;
       }
       return { rootSplit: newRoot, activeGroupId: targetGroupId };
     });
@@ -498,6 +528,48 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     get().saveWorkspaceState(); // Assuming saveWorkspaceState is the equivalent of scheduleSave
     return { rootSplit: nextRoot };
   }),
+
+  closeTabById: (tabId) => {
+    set((state) => {
+      const newRoot = cloneNode(state.rootSplit);
+      const closeFromNode = (node: SplitNode) => {
+        if (node.type === 'leaf' && node.group) {
+          const idx = node.group.tabs.findIndex(t => t.id === tabId);
+          if (idx !== -1) {
+            node.group.tabs.splice(idx, 1);
+            if (node.group.activeTabId === tabId) {
+              node.group.activeTabId = node.group.tabs.length > 0 ? node.group.tabs[Math.max(0, idx - 1)].id : null;
+            }
+          }
+        }
+        if (node.children) node.children.forEach(closeFromNode);
+      };
+      closeFromNode(newRoot);
+      const cleanedRoot = removeEmptyLeaves(newRoot) || createDefaultRoot();
+      return { rootSplit: cleanedRoot };
+    });
+    get().saveWorkspaceState();
+  },
+
+  closeTabsMatchingPrefix: (prefix) => {
+    set((state) => {
+      const newRoot = cloneNode(state.rootSplit);
+      const closeFromNode = (node: SplitNode) => {
+        if (node.type === 'leaf' && node.group) {
+          const before = node.group.tabs.length;
+          node.group.tabs = node.group.tabs.filter(t => !t.id.startsWith(prefix));
+          if (before !== node.group.tabs.length && node.group.activeTabId && !node.group.tabs.find(t => t.id === node.group!.activeTabId)) {
+            node.group.activeTabId = node.group.tabs.length > 0 ? node.group.tabs[node.group.tabs.length - 1].id : null;
+          }
+        }
+        if (node.children) node.children.forEach(closeFromNode);
+      };
+      closeFromNode(newRoot);
+      const cleanedRoot = removeEmptyLeaves(newRoot) || createDefaultRoot();
+      return { rootSplit: cleanedRoot };
+    });
+    get().saveWorkspaceState();
+  },
 
   toggleViewMode: () => {
     set((state) => ({
