@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { FileSystemAPI } from "../../../utils/fs";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
-import { format } from "date-fns";
+import dayjs from "dayjs";
 
 export interface DailyNotesState {
     folderPath: string; // e.g. "Daily Notes/" (relative to Vault root)
@@ -27,8 +27,8 @@ export const useDailyNotesStore = create<DailyNotesState>((set, get) => ({
         if (!vaultPath) return;
 
         const { folderPath, dateFormat, templatePath } = get();
-        // Use true date-fns string formatter
-        const dateStr = format(targetDate || new Date(), dateFormat);
+        // Use dayjs formatter — dateFormat uses dayjs-style tokens (YYYY-MM-DD)
+        const dateStr = dayjs(targetDate || new Date()).format(dateFormat);
 
         // Normalize paths
         const normalizedFolder = folderPath.trim().replace(/^\/+/, '').replace(/\/+$/, '');
@@ -73,6 +73,11 @@ export const useDailyNotesStore = create<DailyNotesState>((set, get) => ({
 
             // Write the file
             await FileSystemAPI.writeFile(fullPath, initialContent);
+
+            // Notify calendar to refresh its active days
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('syntagma:reload-active-file'));
+            }
         }
 
         // 2. Open it in a new tab

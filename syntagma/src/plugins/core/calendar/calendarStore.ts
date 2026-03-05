@@ -1,7 +1,11 @@
 import { create } from "zustand";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useDailyNotesStore } from "../daily/dailyNotesStore";
+import { FileSystemAPI } from "../../../utils/fs";
 import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+
+dayjs.extend(customParseFormat);
 
 export interface CalendarState {
     currentDate: dayjs.Dayjs; // The month currently being viewed in the UI
@@ -47,16 +51,22 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
             const cleanFolder = folderPath.replace(/\/$/, "");
             const targetPath = cleanFolder ? `${vaultPath}/${cleanFolder}` : vaultPath;
 
-            const entries = await (window as any).electron.invoke('fs:readDir', targetPath);
+            // Use recursive scan so nested folder structures (e.g. YYYY/MM/YYYY-MM-DD) are found
+            const entries = await FileSystemAPI.readDirRecursive(targetPath);
             const newActive = new Set<string>();
 
             for (const entry of entries) {
                 if (!entry.isDirectory && entry.name.endsWith('.md')) {
                     const baseName = entry.name.replace('.md', '');
 
-                    // Attempt to parse the filename back into a standard YYYY-MM-DD
-                    // dayjs handles many formats natively if it matches what DailyNotes output
-                    const parsed = dayjs(baseName, dateFormat);
+                    // When dateFormat contains "/" (e.g. "MMMM/YYYY-MM-DD"), the FS splits
+                    // those into subdirectories. The filename only contains the last segment,
+                    // so we parse using just that portion of the format.
+                    const formatParts = dateFormat.split('/');
+                    const fileNameFormat = formatParts[formatParts.length - 1];
+
+                    // customParseFormat plugin enables strict format-string parsing
+                    const parsed = dayjs(baseName, fileNameFormat, true);
 
                     if (parsed.isValid()) {
                         newActive.add(parsed.format('YYYY-MM-DD'));
