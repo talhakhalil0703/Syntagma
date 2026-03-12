@@ -5,20 +5,22 @@ export class MockFileSystem {
     private dirs: Set<string> = new Set(['/mock-vault', '/mock-vault/.syntagma']);
 
     constructor() {
-        const savedFiles = localStorage.getItem('syntagma-mock-fs-files');
-        const savedDirs = localStorage.getItem('syntagma-mock-fs-dirs');
-
         let loaded = false;
-        if (savedFiles) {
-            try {
-                this.files = new Map(JSON.parse(savedFiles));
-                loaded = true;
-            } catch (e) { }
-        }
-        if (savedDirs) {
-            try {
-                this.dirs = new Set(JSON.parse(savedDirs));
-            } catch (e) { }
+        if (typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function') {
+            const savedFiles = localStorage.getItem('syntagma-mock-fs-files');
+            const savedDirs = localStorage.getItem('syntagma-mock-fs-dirs');
+
+            if (savedFiles) {
+                try {
+                    this.files = new Map(JSON.parse(savedFiles));
+                    loaded = true;
+                } catch (e) { }
+            }
+            if (savedDirs) {
+                try {
+                    this.dirs = new Set(JSON.parse(savedDirs));
+                } catch (e) { }
+            }
         }
 
         if (!loaded) {
@@ -29,8 +31,10 @@ export class MockFileSystem {
     }
 
     private save() {
-        localStorage.setItem('syntagma-mock-fs-files', JSON.stringify(Array.from(this.files.entries())));
-        localStorage.setItem('syntagma-mock-fs-dirs', JSON.stringify(Array.from(this.dirs)));
+        if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+            localStorage.setItem('syntagma-mock-fs-files', JSON.stringify(Array.from(this.files.entries())));
+            localStorage.setItem('syntagma-mock-fs-dirs', JSON.stringify(Array.from(this.dirs)));
+        }
     }
 
     async writeFile(filePath: string, content: string): Promise<boolean> {
@@ -122,7 +126,7 @@ export class MockFileSystem {
         return '/mock-vault';
     }
 
-    async readImageBase64(filePath: string): Promise<string | null> {
+    async readImageBase64(_filePath: string): Promise<string | null> {
         return null;
     }
 
@@ -130,11 +134,11 @@ export class MockFileSystem {
         return this.readDir(dirPath);
     }
 
-    async searchVault(vaultPath: string, query: string): Promise<SearchResult[]> {
+    async searchVault(_vaultPath: string, _query: string): Promise<SearchResult[]> {
         return [];
     }
 
-    async executeGitCommand(vaultPath: string, command: string): Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }> {
+    async executeGitCommand(_vaultPath: string, _command: string): Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }> {
         return { success: false, error: "Git not supported in mock vault" };
     }
 
@@ -166,11 +170,11 @@ export class MockFileSystem {
         return false;
     }
 
-    async printToPDF(htmlContent: string, filePath: string): Promise<boolean> {
+    async printToPDF(_htmlContent: string, _filePath: string): Promise<boolean> {
         return false;
     }
 
-    async showSaveDialog(options: { title?: string, defaultPath?: string, filters?: { name: string, extensions: string[] }[] }): Promise<{ canceled: boolean; filePath?: string }> {
+    async showSaveDialog(_options: { title?: string, defaultPath?: string, filters?: { name: string, extensions: string[] }[] }): Promise<{ canceled: boolean; filePath?: string }> {
         return { canceled: true };
     }
 

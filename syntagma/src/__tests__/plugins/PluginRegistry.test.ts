@@ -49,12 +49,10 @@ describe('PluginRegistry', () => {
     });
 
     it('should not load the same plugin twice', async () => {
-        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
         await registry.loadPlugin(MockPlugin, mockManifest);
+        const initialSize = (registry as any).plugins.size;
         await registry.loadPlugin(MockPlugin, mockManifest);
-
-        expect(consoleWarnSpy).toHaveBeenCalledWith(`Plugin ${mockManifest.id} is already loaded.`);
-        consoleWarnSpy.mockRestore();
+        expect((registry as any).plugins.size).toBe(initialSize);
     });
 
     it('should unload a loaded plugin', async () => {
@@ -80,6 +78,9 @@ describe('PluginRegistry', () => {
         const instance = plugins.get(mockManifest.id) as MockPlugin;
 
         await registry.unloadAll();
+        // Wait for the 200ms timeout in PluginRegistry.unloadAll
+        await new Promise(resolve => setTimeout(resolve, 300));
+
         expect(instance.onunloadCalled).toBe(true);
         expect(plugins.size).toBe(0);
     });

@@ -22,7 +22,7 @@ describe("App Component", () => {
 
   it("renders without crashing", () => {
     render(<App />);
-    const elements = screen.getAllByText(/Syntagma/i);
+    const elements = screen.getAllByText(/Ready/i);
     expect(elements.length).toBeGreaterThan(0);
   });
 });

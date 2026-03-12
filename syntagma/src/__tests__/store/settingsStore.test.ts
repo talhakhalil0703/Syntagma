@@ -58,7 +58,9 @@ describe('settingsStore', () => {
 
         const expectedPayload = JSON.stringify({
             attachmentFolderPath: "/saved/path",
-            autoUpdate: true
+            newFileLocation: "root",
+            autoUpdate: true,
+            hotkeys: {}
         }, null, 2);
 
         expect(FileSystemAPI.writeFile).toHaveBeenCalledWith('/mock/vault/.syntagma/settings.json', expectedPayload);
@@ -76,7 +78,9 @@ describe('settingsStore', () => {
         // Auto-save gets triggered
         const expectedPayload = JSON.stringify({
             attachmentFolderPath: "/",
-            autoUpdate: false
+            newFileLocation: "root",
+            autoUpdate: false,
+            hotkeys: {}
         }, null, 2);
 
         // allow microtasks to flush so the saveSettings promise resolves

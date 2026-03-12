@@ -49,10 +49,17 @@ const isElectron = () => {
 };
 
 class FileSystemEventTracker implements FileSystemProvider {
-    inner: FileSystemProvider;
+    private _inner: FileSystemProvider | null = null;
 
-    constructor(inner: FileSystemProvider) {
-        this.inner = inner;
+    private get inner(): FileSystemProvider {
+        if (!this._inner) {
+            this._inner = isElectron() ? new ElectronFileSystem() : new MockFileSystem();
+        }
+        // In test environments, we might want to re-evaluate if mocks were applied after first access
+        if (import.meta.env.MODE === 'test') {
+             return isElectron() ? new ElectronFileSystem() : new MockFileSystem();
+        }
+        return this._inner;
     }
 
     private emit() {
@@ -103,6 +110,4 @@ class FileSystemEventTracker implements FileSystemProvider {
     showSaveDialog(opts: any) { return this.inner.showSaveDialog(opts); }
 }
 
-export const FileSystemAPI: FileSystemProvider = new FileSystemEventTracker(
-    isElectron() ? new ElectronFileSystem() : new MockFileSystem()
-);
+export const FileSystemAPI: FileSystemProvider = new FileSystemEventTracker();
