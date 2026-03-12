@@ -249,3 +249,12 @@ body {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
 }
+
+/* Eliminate lag during sidebar and layout pane resizes */
+body.is-resizing .sidebar {
+  transition: none !important;
+}
+
+body.is-resizing .workspace-content {
+  pointer-events: none !important;
+}
