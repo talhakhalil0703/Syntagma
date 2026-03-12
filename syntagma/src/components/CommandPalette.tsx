@@ -1,13 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import { useSettingsStore } from "../store/settingsStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
+import { useVaultIndexStore } from "../store/vaultIndexStore";
 import { Search, File, Command as CommandIcon } from "lucide-react";
-import { FileSystemAPI } from "../utils/fs";
 import { fuzzyMatch } from "../utils/search";
 
 export function CommandPalette() {
     const { isCommandPaletteOpen, isQuickOpen, closeCommandPalette, commands } = useSettingsStore();
     const { openTab, vaultPath } = useWorkspaceStore();
+    const { files: vaultFiles } = useVaultIndexStore();
     const [query, setQuery] = useState("");
     const [files, setFiles] = useState<{ id: string, title: string }[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -18,7 +19,7 @@ export function CommandPalette() {
 
         async function fetchFiles() {
             if (isCommandPaletteOpen && isQuickOpen && vaultPath) {
-                const entries = await FileSystemAPI.readDirRecursive(vaultPath);
+                const entries = vaultFiles;
                 if (!isMounted) return;
 
                 const mdFiles = entries
@@ -42,7 +43,7 @@ export function CommandPalette() {
         fetchFiles();
 
         return () => { isMounted = false; };
-    }, [isCommandPaletteOpen, isQuickOpen, vaultPath]);
+    }, [isCommandPaletteOpen, isQuickOpen, vaultPath, vaultFiles]);
 
     const commandItems = commands.map(c => ({
         id: c.id,

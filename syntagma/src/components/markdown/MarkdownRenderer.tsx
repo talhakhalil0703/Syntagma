@@ -7,7 +7,6 @@ import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useVaultIndexStore } from '../../store/vaultIndexStore';
-import { FileSystemAPI } from '../../utils/fs';
 import { MermaidRenderer } from './MermaidRenderer';
 import { EmbeddedMarkdown } from './EmbeddedMarkdown';
 import { ResizableImage } from './ResizableImage';
@@ -37,12 +36,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, dep
         let cleanName = decodeURIComponent(targetName).replace(/\\+/g, ' ');
         if (!cleanName.endsWith('.md')) cleanName += '.md';
 
-        // Find the absolute path by scanning the vault recursively
-        const items = await FileSystemAPI.readDirRecursive(vaultPath);
-        const match = items.find(i => !i.isDirectory && i.name.toLowerCase() === cleanName.toLowerCase());
+        // Find the absolute path using the vault index cache
+        const resolveShortestPath = useVaultIndexStore.getState().resolveShortestPath;
+        const resolvedPath = resolveShortestPath(cleanName);
 
-        if (match) {
-            openTab({ id: match.path, title: match.name });
+        if (resolvedPath) {
+            let matchName = resolvedPath.split('/').pop() || cleanName;
+            openTab({ id: resolvedPath, title: matchName });
         } else {
             // Assume creation in root if it doesn't exist
             openTab({ id: `${vaultPath}/${cleanName}`, title: cleanName });

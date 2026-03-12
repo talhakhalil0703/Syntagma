@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useWorkspaceStore } from '../../store/workspaceStore';
+import { useVaultIndexStore } from '../../store/vaultIndexStore';
 import { FileSystemAPI } from '../../utils/fs';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
@@ -47,13 +48,13 @@ export const EmbeddedMarkdown: React.FC<EmbeddedMarkdownProps> = ({ src, depth =
                 let cleanName = decodeURIComponent(targetSrc).replace(/\+/g, ' ');
                 if (!cleanName.endsWith('.md')) cleanName += '.md';
 
-                // Find absolute path
-                const items = await FileSystemAPI.readDirRecursive(vaultPath);
-                const match = items.find(i => !i.isDirectory && i.name.toLowerCase() === cleanName.toLowerCase());
-
+                // Find absolute path utilizing the fast cached index
+                const resolveShortestPath = useVaultIndexStore.getState().resolveShortestPath;
+                let resolvedPath = resolveShortestPath(cleanName);
+                
                 let fileContent = '';
-                if (match) {
-                    fileContent = await FileSystemAPI.readFile(match.path) || '';
+                if (resolvedPath) {
+                    fileContent = await FileSystemAPI.readFile(resolvedPath) || '';
                 } else {
                     fileContent = await FileSystemAPI.readFile(`${vaultPath}/${cleanName}`) || '';
                 }
