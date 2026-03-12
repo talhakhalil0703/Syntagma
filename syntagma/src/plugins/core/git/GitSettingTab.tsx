@@ -4,14 +4,75 @@ import { SettingItem, SettingToggle, SettingText } from "../../../components/ui/
 export function GitSettingTab() {
     const {
         autoCommitInterval, pullBeforeCommit, commitMessageTemplate,
+        pullOnLoad, autoPullInterval, autoPushInterval, pullStrategy,
         updateSetting
     } = useGitStore();
 
     return (
         <div>
             <SettingItem
+                name="Pull on App Load"
+                description="Automatically pull the latest changes from the remote repository when the app starts."
+                control={
+                    <SettingToggle
+                        value={pullOnLoad}
+                        onChange={(val) => updateSetting('pullOnLoad', val)}
+                    />
+                }
+            />
+
+            <SettingItem
+                name="Auto-pull Interval (minutes)"
+                description="Automatically pull changes in the background. Set to 0 to disable."
+                control={
+                    <input
+                        type="number"
+                        min="0"
+                        value={autoPullInterval}
+                        onChange={(e) => updateSetting('autoPullInterval', parseInt(e.target.value) || 0)}
+                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', width: '60px', outline: 'none' }}
+                        onFocus={e => e.target.style.borderColor = "var(--text-accent)"}
+                        onBlur={e => e.target.style.borderColor = "var(--bg-border)"}
+                    />
+                }
+            />
+            
+            <SettingItem
+                name="Auto-push Interval (minutes)"
+                description="Automatically push local changes in the background. Set to 0 to disable."
+                control={
+                    <input
+                        type="number"
+                        min="0"
+                        value={autoPushInterval}
+                        onChange={(e) => updateSetting('autoPushInterval', parseInt(e.target.value) || 0)}
+                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', width: '60px', outline: 'none' }}
+                        onFocus={e => e.target.style.borderColor = "var(--text-accent)"}
+                        onBlur={e => e.target.style.borderColor = "var(--bg-border)"}
+                    />
+                }
+            />
+
+            <SettingItem
+                name="Pull Strategy"
+                description="Choose whether to Merge or Rebase by default when pulling changes."
+                control={
+                    <select
+                        value={pullStrategy}
+                        onChange={(e) => updateSetting('pullStrategy', e.target.value as "merge" | "rebase")}
+                        style={{
+                            padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none'
+                        }}
+                    >
+                        <option value="merge">Merge</option>
+                        <option value="rebase">Rebase</option>
+                    </select>
+                }
+            />
+
+            <SettingItem
                 name="Auto-commit Interval (minutes)"
-                description="Automatically sync your vault in the background. Set to 0 to disable automated background syncs."
+                description="Automatically stage and commit your vault in the background. Set to 0 to disable."
                 control={
                     <input
                         type="number"
@@ -27,7 +88,7 @@ export function GitSettingTab() {
 
             <SettingItem
                 name="Pull before Committing"
-                description="Ensures latest remote changes are fetched before pushing new edits."
+                description="Ensures latest remote changes are fetched before pushing new edits (used by Sync Vault)."
                 control={
                     <SettingToggle
                         value={pullBeforeCommit}

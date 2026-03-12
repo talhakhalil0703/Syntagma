@@ -11,6 +11,7 @@ import { FileSystemAPI } from "../utils/fs";
 import { livePreviewExtension } from "./editor/LivePreviewExtension";
 import { wikilinkExtension, wikilinkAutocomplete } from "./editor/WikilinkExtension";
 import { autocompletion } from "@codemirror/autocomplete";
+import { diffExtension } from "./editor/DiffExtension";
 
 class TitleWidget extends WidgetType {
   title: string;
@@ -48,12 +49,16 @@ interface EditorProps {
   value?: string;
   onChange?: (val: string) => void;
   title?: string;
+  readOnly?: boolean;
+  language?: "markdown" | "diff";
 }
 
 export const Editor: React.FC<EditorProps> = ({
   value = "",
   onChange,
   title,
+  readOnly = false,
+  language = "markdown",
 }) => {
   const { mode, systemDark } = useThemeStore();
   const isDark = mode === "dark" || (mode === "system" && systemDark);
@@ -115,24 +120,31 @@ export const Editor: React.FC<EditorProps> = ({
   );
 
   const extensions = useMemo(() => {
-    const exts = [
-      markdown({
-        base: markdownLanguage,
-        codeLanguages: languages,
-      }),
-      EditorView.lineWrapping,
-      autocompletion({ override: [wikilinkAutocomplete] }),
-      wikilinkExtension(),
-      ...themeExtensions,
-    ];
-    if (viewMode === "live") {
-      exts.push(livePreviewExtension());
+    let exts = [...themeExtensions];
+    
+    if (language === "markdown") {
+        exts.push(
+            markdown({
+                base: markdownLanguage,
+                codeLanguages: languages,
+            }),
+            autocompletion({ override: [wikilinkAutocomplete] }),
+            wikilinkExtension()
+        );
+        if (viewMode === "live" && !readOnly) {
+            exts.push(livePreviewExtension());
+        }
+    } else if (language === "diff") {
+        exts.push(diffExtension());
     }
+
+    exts.push(EditorView.lineWrapping);
+
     if (title) {
       exts.push(inlineTitleExtension(title));
     }
     return exts;
-  }, [themeExtensions, viewMode, title]);
+  }, [themeExtensions, viewMode, title, language, readOnly]);
 
   const dropExtension = useMemo(() => {
     return EditorView.domEventHandlers({
@@ -187,6 +199,8 @@ export const Editor: React.FC<EditorProps> = ({
       <CodeMirror
         value={value}
         height="100%"
+        readOnly={readOnly}
+        editable={!readOnly}
         extensions={[...extensions, dropExtension]}
         onChange={onChange}
         theme={isDark ? "dark" : "light"}

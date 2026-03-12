@@ -6,8 +6,11 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import { useWorkspaceStore } from '../../store/workspaceStore';
+import { useVaultIndexStore } from '../../store/vaultIndexStore';
 import { FileSystemAPI } from '../../utils/fs';
 import { MermaidRenderer } from './MermaidRenderer';
+import { EmbeddedMarkdown } from './EmbeddedMarkdown';
+import { ResizableImage } from './ResizableImage';
 
 interface MarkdownRendererProps {
     content: string;
@@ -15,6 +18,16 @@ interface MarkdownRendererProps {
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
     const { vaultPath, openTab } = useWorkspaceStore();
+    const resolveShortestPath = useVaultIndexStore(state => state.resolveShortestPath);
+
+    const processedContent = useMemo(() => {
+        if (!content) return '';
+        // Pre-process Obsidian image transclusions: ![[image.png]] -> ![image.png](image.png)
+        // Pre-process Obsidian file transclusions: ![[file.md]] -> ![file.md](file.md)
+        return content.replace(/!\[\[(.*?)\]\]/g, (_, inner) => {
+            return `![${inner}](${inner})`;
+        });
+    }, [content]);
 
     const handleInternalLink = async (targetName: string) => {
         if (!vaultPath) return;
@@ -65,17 +78,46 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
             );
         },
         img: ({ node, src, alt, ...props }: any) => {
-            let mediaSrc = src;
+            let mediaSrc = src || '';
+            let rawAlt = alt || '';
+            let width: number | undefined = undefined;
+
+            // Handle Obsidian-style resize parameters: ![[image.png|100]]
+            if (mediaSrc.includes('|')) {
+                const parts = mediaSrc.split('|');
+                mediaSrc = parts[0];
+                const dimensionMatch = parts[1].match(/^\d+/);
+                if (dimensionMatch) {
+                    width = parseInt(dimensionMatch[0], 10);
+                }
+            } else if (rawAlt && rawAlt.match(/^\d+$/)) {
+                width = parseInt(rawAlt, 10);
+            } else if (rawAlt && rawAlt.includes('|')) {
+                const parts = rawAlt.split('|');
+                const dimensionMatch = parts[parts.length - 1].match(/^\d+/);
+                if (dimensionMatch) {
+                    width = parseInt(dimensionMatch[0], 10);
+                }
+            }
+
+            // Is it a markdown file transclusion?
+            if (mediaSrc.toLowerCase().endsWith('.md')) {
+                return <EmbeddedMarkdown src={mediaSrc} />;
+            }
 
             if (mediaSrc && !mediaSrc.startsWith('http') && !mediaSrc.startsWith('data:')) {
-                // Map relative path to absolute native OS path
-                if (vaultPath) {
-                    const cleanPath = mediaSrc.replace(/^[/]/, '');
+                let cleanPath = mediaSrc.replace(/^[/]/, '');
+                cleanPath = decodeURIComponent(cleanPath).replace(/\+/g, ' ');
+                const resolved = resolveShortestPath(cleanPath);
+                
+                if (resolved) {
+                    mediaSrc = `file://${resolved}`;
+                } else if (vaultPath) {
                     mediaSrc = `file://${vaultPath}/${cleanPath}`;
                 }
             }
 
-            return <img {...props} src={mediaSrc} alt={alt} style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '16px', marginBottom: '16px' }} />;
+            return <ResizableImage {...props} src={mediaSrc} alt={rawAlt} originalSrc={src || ''} defaultWidth={width} />;
         },
         code({ node, inline, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '');
@@ -105,7 +147,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
                 rehypePlugins={[rehypeRaw, rehypeKatex]}
                 components={components}
             >
-                {content}
+                {processedContent}
             </ReactMarkdown>
         </div>
     );

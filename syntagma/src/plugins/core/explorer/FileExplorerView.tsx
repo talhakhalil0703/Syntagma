@@ -9,6 +9,7 @@ import {
 import { useContextMenuStore } from "../../../store/contextMenuStore";
 import { useExplorerSelectionStore } from "./explorerSelectionStore";
 import { getUniqueName } from "./explorerUtils";
+import { updateBacklinks } from "../../../utils/backlinks";
 import './FileExplorer.css';
 
 const DRAG_THRESHOLD = 5; // pixels before a mousedown becomes a marquee drag
@@ -434,6 +435,7 @@ async function movePathsToDir(paths: string[], targetDir: string) {
     // Get existing names in target directory for conflict resolution
     const existing = await FileSystemAPI.readDir(targetDir);
     const existingNames = new Set(existing.map(e => e.name));
+    const vaultPath = useWorkspaceStore.getState().vaultPath;
 
     for (const sourcePath of paths) {
         const name = sourcePath.split('/').pop() || '';
@@ -450,6 +452,10 @@ async function movePathsToDir(paths: string[], targetDir: string) {
             existingNames.add(uniqueName);
             // Update tabs if it was a file
             useWorkspaceStore.getState().renameTab(sourcePath, destPath, uniqueName);
+            // Update backlinks if vaultPath is known and it's a rename
+            if (vaultPath) {
+                await updateBacklinks(vaultPath, name, uniqueName);
+            }
         }
     }
     useExplorerSelectionStore.getState().clearSelection();
@@ -477,7 +483,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ entry, depth, getFlatPaths,
     const [expanded, setExpanded] = useState(false);
     const [children, setChildren] = useState<DirEntry[]>([]);
     const [dropHover, setDropHover] = useState(false);
-    const { openTab } = useWorkspaceStore();
+    const { openTab, vaultPath } = useWorkspaceStore();
     const isSelected = useExplorerSelectionStore(s => s.selectedPaths.has(entry.path));
 
     const loadChildren = useCallback(async () => {
@@ -549,6 +555,9 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ entry, depth, getFlatPaths,
             const success = await FileSystemAPI.renameFile(entry.path, newPath);
             if (success && !entry.isDirectory) {
                 useWorkspaceStore.getState().renameTab(entry.path, newPath, newName);
+                if (vaultPath) {
+                    await updateBacklinks(vaultPath, entry.name, newName);
+                }
             }
         }
     };
@@ -632,7 +641,6 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ entry, depth, getFlatPaths,
     const { openMenu } = useContextMenuStore();
     const { openInNewTab, openToRight } = useWorkspaceStore();
     const { selectedPaths, clearSelection, copySelection } = useExplorerSelectionStore();
-    const vaultPath = useWorkspaceStore(s => s.vaultPath);
 
     const handleContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();

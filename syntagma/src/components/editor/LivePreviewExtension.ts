@@ -11,6 +11,9 @@ import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
 import { FileSystemAPI } from "../../utils/fs";
 import { useVaultIndexStore } from "../../store/vaultIndexStore";
+import React from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { EmbeddedMarkdown } from '../markdown/EmbeddedMarkdown';
 
 // Hide decoration for syntax markers
 export const hideMarkDeco = Decoration.replace({});
@@ -129,9 +132,22 @@ class ImageWidget extends WidgetType {
         img.style.marginTop = "8px";
         img.style.marginBottom = "8px";
         img.style.display = "block";
-        img.alt = this.src;
+        let cleanSrc = this.src;
+        let width: string | undefined = undefined;
 
-        const resolvedPath = useVaultIndexStore.getState().resolveShortestPath(this.src);
+        if (cleanSrc.includes('|')) {
+            const parts = cleanSrc.split('|');
+            cleanSrc = parts[0];
+            width = parts[parts.length - 1]; // Use last part like width
+        }
+
+        img.alt = cleanSrc;
+
+        if (width && width.match(/^\d+$/)) {
+            img.style.width = `${width}px`;
+        }
+
+        const resolvedPath = useVaultIndexStore.getState().resolveShortestPath(cleanSrc);
 
         if (resolvedPath) {
             FileSystemAPI.readImageBase64(resolvedPath).then(base64 => {
@@ -139,13 +155,44 @@ class ImageWidget extends WidgetType {
                     img.src = base64;
                 } else {
                     // Fallback visual
-                    img.alt = "Image not found: " + this.src;
+                    img.alt = "Image not found: " + cleanSrc;
                 }
             });
+        } else {
+            img.alt = "Image not found: " + cleanSrc;
         }
 
         wrap.appendChild(img);
         return wrap;
+    }
+}
+
+class EmbedWidget extends WidgetType {
+    src: string;
+    root: Root | null = null;
+
+    constructor(src: string) {
+        super();
+        this.src = src;
+    }
+
+    eq(other: EmbedWidget) {
+        return this.src === other.src;
+    }
+
+    toDOM() {
+        const wrap = document.createElement("div");
+        wrap.className = "cm-embed-widget";
+        // Render EmbeddedMarkdown component into the widget
+        this.root = createRoot(wrap);
+        this.root.render(React.createElement(EmbeddedMarkdown, { src: this.src }));
+        return wrap;
+    }
+    
+    destroy(_dom: HTMLElement) {
+        if (this.root) {
+            this.root.unmount();
+        }
     }
 }
 
@@ -320,19 +367,42 @@ export function buildDecorations(view: EditorView) {
             }
         }
 
-        // ![[image]]
-        const imageRegex = /!\[\[([^\]]+)\]\]/g;
+        // ![[image]] or ![[note]]
+        const embedRegex = /!\[\[([^\]]+)\]\]/g;
         let m;
-        while ((m = imageRegex.exec(text)) !== null) {
+        while ((m = embedRegex.exec(text)) !== null) {
             const matchFrom = from + m.index;
             const matchTo = matchFrom + m[0].length;
             if (!isCursorInside(matchFrom, matchTo)) {
-                decorations.push({
-                    from: matchFrom,
-                    to: matchTo,
-                    deco: Decoration.replace({ widget: new ImageWidget(m[1]) }),
-                    isLine: false
-                });
+                let innerText = m[1];
+                let isMarkdown = false;
+                
+                let cleanSrc = innerText.includes('|') ? innerText.split('|')[0] : innerText;
+                
+                // Determine if it's an image or markdown. Assume image unless it ends with .md, or there's no extension
+                const extMatch = cleanSrc.match(/\.([a-zA-Z0-9]+)$/);
+                if (extMatch && extMatch[1].toLowerCase() === 'md') {
+                    isMarkdown = true;
+                } else if (!extMatch) {
+                    // No extension, typical for markdown note transclusions in Obsidian
+                    isMarkdown = true; 
+                }
+
+                if (isMarkdown) {
+                    decorations.push({
+                        from: matchFrom,
+                        to: matchTo,
+                        deco: Decoration.replace({ widget: new EmbedWidget(innerText) }),
+                        isLine: false
+                    });
+                } else {
+                    decorations.push({
+                        from: matchFrom,
+                        to: matchTo,
+                        deco: Decoration.replace({ widget: new ImageWidget(innerText) }),
+                        isLine: false
+                    });
+                }
             } else {
                 decorations.push({
                     from: matchFrom,

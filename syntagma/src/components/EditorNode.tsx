@@ -6,6 +6,8 @@ import { FileSystemAPI } from "../utils/fs";
 import { useVaultIndexStore } from "../store/vaultIndexStore";
 import { BrowserView } from "../plugins/core/browser/BrowserView";
 import { ExcalidrawView } from "../plugins/core/excalidraw/ExcalidrawView";
+import { GitChangesView } from "../plugins/core/git/GitChangesView";
+import { GitCommitView } from "../plugins/core/git/GitCommitView";
 import { Editor } from "./Editor";
 import { useContextMenuStore } from "../store/contextMenuStore";
 
@@ -385,6 +387,10 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
                     <div style={{ padding: '24px', color: 'var(--text-secondary)' }}>Loading content...</div>
                 ) : activeTabId?.startsWith("browser-") ? (
                     <BrowserView />
+                ) : activeTabId === "git-changes-view" ? (
+                    <GitChangesView />
+                ) : activeTabId?.startsWith("git-commit-") ? (
+                    <GitCommitView tabId={activeTabId} />
                 ) : (activeTabId?.endsWith(".excalidraw") || activeTabId?.endsWith(".excalidraw.md")) ? (
                     <ExcalidrawView key={activeTabId} fileId={activeTabId} fileContent={fileContent} onChange={(val) => handleEditorChange(val, activeTabId)} />
                 ) : (
