@@ -5,13 +5,25 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface EmbeddedMarkdownProps {
     src: string;
+    depth?: number;
 }
 
-export const EmbeddedMarkdown: React.FC<EmbeddedMarkdownProps> = ({ src }) => {
+export const EmbeddedMarkdown: React.FC<EmbeddedMarkdownProps> = ({ src, depth = 0 }) => {
     const { vaultPath } = useWorkspaceStore();
     const [content, setContent] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+
+    if (depth > 5) {
+        return (
+            <div className="markdown-embed error" style={{
+                borderLeft: '2px solid var(--error-color, red)',
+                paddingLeft: '16px',margin: '16px 0',color: 'var(--text-secondary)'
+            }}>
+                Transclusion loop or max depth reached.
+            </div>
+        );
+    }
 
     useEffect(() => {
         let isMounted = true;
@@ -62,12 +74,8 @@ export const EmbeddedMarkdown: React.FC<EmbeddedMarkdownProps> = ({ src }) => {
 
         loadContent();
 
-        // Optional: listen to file changes if another tab modifies it
-        const handleFsChange = () => loadContent();
-        window.addEventListener('filesystem-changed', handleFsChange);
         return () => {
             isMounted = false;
-            window.removeEventListener('filesystem-changed', handleFsChange);
         };
     }, [src, vaultPath]);
 
@@ -100,13 +108,9 @@ export const EmbeddedMarkdown: React.FC<EmbeddedMarkdownProps> = ({ src }) => {
     return (
         <div className="markdown-embed" style={{
             borderLeft: '2px solid var(--border-color, #444)',
-            paddingLeft: '16px',
-            margin: '16px 0',
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: '4px',
-            overflow: 'hidden'
+            paddingLeft: '16px', margin: '16px 0', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', overflow: 'hidden'
         }}>
-            <MarkdownRenderer content={content} />
+            <MarkdownRenderer content={content} depth={depth + 1} />
         </div>
     );
 };

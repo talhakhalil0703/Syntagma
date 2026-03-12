@@ -14,9 +14,10 @@ import { ResizableImage } from './ResizableImage';
 
 interface MarkdownRendererProps {
     content: string;
+    depth?: number;
 }
 
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, depth = 0 }) => {
     const { vaultPath, openTab } = useWorkspaceStore();
     const resolveShortestPath = useVaultIndexStore(state => state.resolveShortestPath);
 
@@ -102,7 +103,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
 
             // Is it a markdown file transclusion?
             if (mediaSrc.toLowerCase().endsWith('.md')) {
-                return <EmbeddedMarkdown src={mediaSrc} />;
+                return <EmbeddedMarkdown src={mediaSrc} depth={depth} />;
             }
 
             if (mediaSrc && !mediaSrc.startsWith('http') && !mediaSrc.startsWith('data:')) {

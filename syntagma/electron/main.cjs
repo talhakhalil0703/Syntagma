@@ -404,3 +404,8 @@ ipcMain.handle('fs:renameFile', async (event, { oldPath, newPath }) => {
         return { success: false, error: error.message };
     }
 });
+
+// Get Application Version Native UI
+ipcMain.handle('app:getVersion', () => {
+    return app.getVersion();
+});

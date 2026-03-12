@@ -214,4 +214,15 @@ export class ElectronFileSystem implements FileSystemProvider {
             return false;
         }
     }
+
+    async getAppVersion(): Promise<string> {
+        try {
+            const ipc = getIpcRenderer();
+            if (!ipc) return "0.0.0";
+            return await ipc.invoke('app:getVersion');
+        } catch (e) {
+            console.error(e);
+            return "0.0.0";
+        }
+    }
 }

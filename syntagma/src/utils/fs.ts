@@ -38,6 +38,7 @@ export interface FileSystemProvider {
     showSaveDialog(options: { title?: string, defaultPath?: string, filters?: { name: string, extensions: string[] }[] }): Promise<{ canceled: boolean; filePath?: string }>;
     deleteFile(filePath: string): Promise<boolean>;
     renameFile(oldPath: string, newPath: string): Promise<boolean>;
+    getAppVersion(): Promise<string>;
 }
 
 import { ElectronFileSystem } from "./ElectronFileSystem";
@@ -108,6 +109,7 @@ class FileSystemEventTracker implements FileSystemProvider {
     stat(targetPath: string) { return this.inner.stat(targetPath); }
     printToPDF(html: string, path: string) { return this.inner.printToPDF(html, path); }
     showSaveDialog(opts: any) { return this.inner.showSaveDialog(opts); }
+    getAppVersion() { return this.inner.getAppVersion(); }
 }
 
 export const FileSystemAPI: FileSystemProvider = new FileSystemEventTracker();

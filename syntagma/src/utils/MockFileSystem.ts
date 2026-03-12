@@ -220,4 +220,8 @@ export class MockFileSystem {
         }
         return success;
     }
+
+    async getAppVersion(): Promise<string> {
+        return "0.0.0-mock";
+    }
 }

@@ -1,12 +1,18 @@
 import { useSettingsStore } from "../store/settingsStore";
 import { X, Search } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { SettingHeading, SettingItem, SettingToggle, SettingText, SettingSelect } from "./ui/SettingsUI";
+import { FileSystemAPI } from "../utils/fs";
 
 export function SettingsModal() {
     const [activeTab, setActiveTab] = useState("general");
     const [hotkeyQuery, setHotkeyQuery] = useState("");
     const [recordingCommandId, setRecordingCommandId] = useState<string | null>(null);
+    const [appVersion, setAppVersion] = useState("Loading...");
+
+    useEffect(() => {
+        FileSystemAPI.getAppVersion().then(v => setAppVersion(v));
+    }, []);
 
     const {
         isSettingsOpen, closeSettings,
@@ -142,6 +148,14 @@ export function SettingsModal() {
                             />
                         }
                     />
+
+                    <div style={{ marginTop: '32px', borderTop: '1px solid var(--bg-border)', paddingTop: '16px' }}>
+                        <SettingItem
+                            name="About Syntagma"
+                            description={`Version ${appVersion}`}
+                            control={<div />}
+                        />
+                    </div>
                 </div>
             );
         }

@@ -9,11 +9,11 @@ import {
 } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
-import { FileSystemAPI } from "../../utils/fs";
 import { useVaultIndexStore } from "../../store/vaultIndexStore";
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EmbeddedMarkdown } from '../markdown/EmbeddedMarkdown';
+import { ResizableImage } from '../markdown/ResizableImage';
 
 // Hide decoration for syntax markers
 export const hideMarkDeco = Decoration.replace({});
@@ -111,6 +111,7 @@ class CopyButtonWidget extends WidgetType {
 
 class ImageWidget extends WidgetType {
     src: string;
+    root: Root | null = null;
 
     constructor(src: string) {
         super();
@@ -123,47 +124,41 @@ class ImageWidget extends WidgetType {
 
     toDOM() {
         const wrap = document.createElement("span");
-        wrap.className = "cm-image-widget";
+        wrap.className = "cm-image-widget-react";
 
-        const img = document.createElement("img");
-        img.style.maxWidth = "100%";
-        img.style.maxHeight = "600px";
-        img.style.borderRadius = "4px";
-        img.style.marginTop = "8px";
-        img.style.marginBottom = "8px";
-        img.style.display = "block";
+        this.root = createRoot(wrap);
+
         let cleanSrc = this.src;
-        let width: string | undefined = undefined;
+        let width: number | undefined = undefined;
 
         if (cleanSrc.includes('|')) {
             const parts = cleanSrc.split('|');
             cleanSrc = parts[0];
-            width = parts[parts.length - 1]; // Use last part like width
-        }
-
-        img.alt = cleanSrc;
-
-        if (width && width.match(/^\d+$/)) {
-            img.style.width = `${width}px`;
+            const wPart = parts[parts.length - 1]; // Use last part like width
+            if (wPart.match(/^\d+$/)) {
+                width = parseInt(wPart, 10);
+            }
         }
 
         const resolvedPath = useVaultIndexStore.getState().resolveShortestPath(cleanSrc);
+        const finalSrc = resolvedPath ? `file://${resolvedPath}` : cleanSrc;
 
-        if (resolvedPath) {
-            FileSystemAPI.readImageBase64(resolvedPath).then(base64 => {
-                if (base64) {
-                    img.src = base64;
-                } else {
-                    // Fallback visual
-                    img.alt = "Image not found: " + cleanSrc;
-                }
-            });
-        } else {
-            img.alt = "Image not found: " + cleanSrc;
-        }
+        this.root.render(
+            React.createElement(ResizableImage, { 
+                src: finalSrc, 
+                originalSrc: this.src, 
+                alt: cleanSrc, 
+                defaultWidth: width 
+            })
+        );
 
-        wrap.appendChild(img);
         return wrap;
+    }
+
+    destroy(_dom: HTMLElement) {
+        if (this.root) {
+            this.root.unmount();
+        }
     }
 }
 
