@@ -1,6 +1,7 @@
-import { Decoration, ViewPlugin, EditorView, WidgetType } from "@codemirror/view";
-import type { DecorationSet, ViewUpdate } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
+import { Decoration, EditorView, WidgetType } from "@codemirror/view";
+import type { DecorationSet } from "@codemirror/view";
+import { RangeSetBuilder, StateField } from "@codemirror/state";
+import type { Text } from "@codemirror/state";
 
 class FileHeaderWidget extends WidgetType {
   filename: string;
@@ -24,62 +25,52 @@ const deletionMark = Decoration.line({ attributes: { class: "cm-diff-del" } });
 const headerMark = Decoration.line({ attributes: { class: "cm-diff-header" } });
 const hiddenMark = Decoration.replace({});
 
-function diffDecorations(view: EditorView) {
+function diffDecorations(doc: Text) {
   const builder = new RangeSetBuilder<Decoration>();
-  for (const { from, to } of view.visibleRanges) {
-    for (let pos = from; pos <= to; ) {
-      const line = view.state.doc.lineAt(pos);
-      const text = line.text;
-      
-      const replaceEnd = Math.min(line.to + 1, view.state.doc.length);
+  
+  for (let i = 1; i <= doc.lines; i++) {
+    const line = doc.line(i);
+    const text = line.text;
+    const replaceEnd = Math.min(line.to + 1, doc.length);
 
-      if (text.startsWith("diff --git ")) {
-        const match = text.match(/^diff --git a\/(.+) b\//);
-        const filename = match ? match[1] : text.replace("diff --git ", "");
-        builder.add(line.from, line.from, Decoration.widget({
-            widget: new FileHeaderWidget(filename),
-            block: true
-        }));
-        builder.add(line.from, replaceEnd, hiddenMark);
-      } else if (text.startsWith("index ") || text.startsWith("--- ") || text.startsWith("+++ ") || text.startsWith("similarity index ") || text.startsWith("rename from ") || text.startsWith("rename to ")) {
-        builder.add(line.from, replaceEnd, hiddenMark);
-      } else if (text.startsWith("+") && !text.startsWith("+++")) {
-        builder.add(line.from, line.from, additionMark);
-      } else if (text.startsWith("-") && !text.startsWith("---")) {
-        builder.add(line.from, line.from, deletionMark);
-      } else if (text.startsWith("@@ ")) {
-        builder.add(line.from, line.from, headerMark);
-      }
-      
-      if (line.to >= view.state.doc.length) break;
-      pos = line.to + 1;
+    if (text.startsWith("diff --git ")) {
+      const match = text.match(/^diff --git a\/(.+) b\//);
+      const filename = match ? match[1] : text.replace("diff --git ", "");
+      builder.add(line.from, line.from, Decoration.widget({
+          widget: new FileHeaderWidget(filename),
+          block: true
+      }));
+      builder.add(line.from, replaceEnd, hiddenMark);
+    } else if (text.startsWith("index ") || text.startsWith("--- ") || text.startsWith("+++ ") || text.startsWith("similarity index ") || text.startsWith("rename from ") || text.startsWith("rename to ")) {
+      builder.add(line.from, replaceEnd, hiddenMark);
+    } else if (text.startsWith("+") && !text.startsWith("+++")) {
+      builder.add(line.from, line.from, additionMark);
+    } else if (text.startsWith("-") && !text.startsWith("---")) {
+      builder.add(line.from, line.from, deletionMark);
+    } else if (text.startsWith("@@ ")) {
+      builder.add(line.from, line.from, headerMark);
     }
   }
+  
   return builder.finish();
 }
 
-const diffPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) {
-      this.decorations = diffDecorations(view);
-    }
-    update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
-        this.decorations = diffDecorations(update.view);
-      }
-    }
+const diffStateField = StateField.define<DecorationSet>({
+  create(state) {
+    return diffDecorations(state.doc);
   },
-  {
-    decorations: (v) => v.decorations
-  }
-);
+  update(value, tr) {
+    if (tr.docChanged) return diffDecorations(tr.state.doc);
+    return value.map(tr.changes);
+  },
+  provide: f => EditorView.decorations.from(f)
+});
 
 export const diffExtension = () => [
-  diffPlugin,
+  diffStateField,
   EditorView.baseTheme({
     ".cm-diff-add": { 
-        backgroundColor: "rgba(46, 160, 67, 0.15)",
+        backgroundColor: "rgba(46, 160, 167, 0.15)",
         color: "#3fb950" 
     },
     ".cm-diff-del": { 
@@ -109,3 +100,4 @@ export const diffExtension = () => [
     }
   })
 ];
+
