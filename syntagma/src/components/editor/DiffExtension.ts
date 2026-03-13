@@ -30,21 +30,19 @@ function diffDecorations(view: EditorView) {
     for (let pos = from; pos <= to; ) {
       const line = view.state.doc.lineAt(pos);
       const text = line.text;
-      const endPos = Math.min(line.to + 1, view.state.doc.length);
       
+      const replaceEnd = Math.min(line.to + 1, view.state.doc.length);
+
       if (text.startsWith("diff --git ")) {
         const match = text.match(/^diff --git a\/(.+) b\//);
         const filename = match ? match[1] : text.replace("diff --git ", "");
-        builder.add(line.from, endPos, Decoration.replace({
+        builder.add(line.from, line.from, Decoration.widget({
             widget: new FileHeaderWidget(filename),
             block: true
         }));
-        pos = endPos;
-        continue;
+        builder.add(line.from, replaceEnd, hiddenMark);
       } else if (text.startsWith("index ") || text.startsWith("--- ") || text.startsWith("+++ ") || text.startsWith("similarity index ") || text.startsWith("rename from ") || text.startsWith("rename to ")) {
-        builder.add(line.from, endPos, hiddenMark);
-        pos = endPos;
-        continue;
+        builder.add(line.from, replaceEnd, hiddenMark);
       } else if (text.startsWith("+") && !text.startsWith("+++")) {
         builder.add(line.from, line.from, additionMark);
       } else if (text.startsWith("-") && !text.startsWith("---")) {
@@ -53,7 +51,8 @@ function diffDecorations(view: EditorView) {
         builder.add(line.from, line.from, headerMark);
       }
       
-      pos = endPos;
+      if (line.to >= view.state.doc.length) break;
+      pos = line.to + 1;
     }
   }
   return builder.finish();

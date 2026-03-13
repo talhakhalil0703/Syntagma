@@ -3,6 +3,7 @@ import { FileSystemAPI, type DirEntry } from "../utils/fs";
 
 interface VaultIndexState {
     files: DirEntry[];
+    fileMap: Map<string, string[]>;
     isIndexing: boolean;
     buildIndex: (vaultPath: string) => Promise<void>;
     resolveShortestPath: (linkText: string) => string | null;
@@ -11,6 +12,7 @@ interface VaultIndexState {
 
 export const useVaultIndexStore = create<VaultIndexState>((set, get) => ({
     files: [],
+    fileMap: new Map(),
     isIndexing: false,
 
     buildIndex: async (vaultPath: string) => {
@@ -22,7 +24,17 @@ export const useVaultIndexStore = create<VaultIndexState>((set, get) => ({
             // Filter out hidden files (e.g. .git, .syntagma, .DS_Store)
             const visibleFiles = allFiles.filter(f => !f.name.startsWith('.'));
 
-            set({ files: visibleFiles, isIndexing: false });
+            // Build an O(1) lookup map of lowercased filename -> array of matching absolute paths
+            const map = new Map<string, string[]>();
+            for (const f of visibleFiles) {
+                const lowerName = f.name.toLowerCase();
+                if (!map.has(lowerName)) {
+                    map.set(lowerName, []);
+                }
+                map.get(lowerName)!.push(f.path);
+            }
+
+            set({ files: visibleFiles, fileMap: map, isIndexing: false });
         } catch (error) {
             console.error("Failed to build vault index:", error);
             set({ isIndexing: false });
@@ -30,32 +42,30 @@ export const useVaultIndexStore = create<VaultIndexState>((set, get) => ({
     },
 
     resolveShortestPath: (linkText: string): string | null => {
-        const { files } = get();
-        if (!linkText || files.length === 0) return null;
+        const { files, fileMap } = get();
+        if (!linkText || fileMap.size === 0) return null;
 
         // 1. Exact match (linkText is already a full relative path)
         const exactMatch = files.find(f => f.path === linkText || f.path === `${linkText}.md`);
         if (exactMatch) return exactMatch.path;
 
-        // 2. Filename match anywhere in the vault
-        // To match Obsidian, we look for notes ending in .md or exact name if it's an attachment
+        // 2. Filename match anywhere in the vault (O(1) via Map)
         const targetName = linkText.toLowerCase();
         const targetNameMd = `${targetName}.md`;
 
-        // Find all files that match the requested name (either exactly or with .md appended)
-        const matches = files.filter(f => {
-            const fileNameLower = f.name.toLowerCase();
-            return fileNameLower === targetName || fileNameLower === targetNameMd;
-        });
+        const exactMatches = fileMap.get(targetName) || [];
+        const mdMatches = fileMap.get(targetNameMd) || [];
+        
+        const allMatches = [...exactMatches, ...mdMatches];
 
-        if (matches.length === 0) return null;
+        if (allMatches.length === 0) return null;
 
         // If multiple files have the same name, Obsidian uses the one with the shortest path
-        if (matches.length > 1) {
-            matches.sort((a, b) => a.path.length - b.path.length);
+        if (allMatches.length > 1) {
+            allMatches.sort((a, b) => a.length - b.length);
         }
 
-        return matches[0].path;
+        return allMatches[0];
     },
 
     updateWikilinks: async (oldName: string, newName: string) => {
