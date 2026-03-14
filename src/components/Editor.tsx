@@ -23,8 +23,8 @@ class TitleWidget extends WidgetType {
     h1.innerText = this.title;
     h1.style.marginTop = "0";
     h1.style.marginBottom = "24px";
-    h1.style.fontSize = "2.5em";
-    h1.style.color = "var(--text-primary)";
+    h1.style.fontSize = "1.85em";
+    h1.style.color = "var(--md-h1-color, var(--text-primary))";
     h1.style.fontWeight = "800";
     h1.style.letterSpacing = "-0.02em";
     return h1;
@@ -72,7 +72,7 @@ export const Editor: React.FC<EditorProps> = ({
           "&": {
             backgroundColor: "var(--bg-primary)",
             color: "var(--text-primary)",
-            fontSize: "16px",
+            fontSize: "var(--base-font-size, 16px)",
             height: "100%",
             fontFamily:
               "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",

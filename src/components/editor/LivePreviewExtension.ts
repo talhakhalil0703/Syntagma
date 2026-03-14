@@ -453,18 +453,18 @@ const livePreviewTheme = EditorView.theme({
         paddingBottom: "0.5rem",
         display: "inline-block",
     },
-    ".cm-header-1": { fontSize: "2.2em" },
-    ".cm-header-2": { fontSize: "1.8em" },
-    ".cm-header-3": { fontSize: "1.5em" },
-    ".cm-header-4": { fontSize: "1.2em" },
-    ".cm-header-5": { fontSize: "1.0em" },
-    ".cm-header-6": { fontSize: "0.9em", color: "var(--text-secondary)" },
+    ".cm-header-1": { fontSize: "var(--md-h1-size)", color: "var(--md-h1-color)" },
+    ".cm-header-2": { fontSize: "var(--md-h2-size)", color: "var(--md-h2-color)" },
+    ".cm-header-3": { fontSize: "var(--md-h3-size)", color: "var(--md-h3-color)" },
+    ".cm-header-4": { fontSize: "var(--md-h4-size)", color: "var(--md-h4-color)" },
+    ".cm-header-5": { fontSize: "var(--md-h5-size)" },
+    ".cm-header-6": { fontSize: "var(--md-h6-size)", color: "var(--text-secondary)" },
 
     ".cm-blockquote": {
         borderLeft: "4px solid var(--text-accent)",
         paddingLeft: "16px",
         color: "var(--text-secondary)",
-        backgroundColor: "transparent",
+        backgroundColor: "rgba(0, 212, 255, 0.03)",
     },
 
     ".cm-strong": {
@@ -528,7 +528,7 @@ const livePreviewTheme = EditorView.theme({
     // Callout styling
     ".cm-callout": {
         borderLeft: "4px solid var(--text-accent)",
-        backgroundColor: "rgba(123, 44, 191, 0.05)",
+        backgroundColor: "rgba(0, 212, 255, 0.03)",
         padding: "4px 16px",
         margin: "0",
         borderRadius: "0 4px 4px 0",

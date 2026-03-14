@@ -107,10 +107,7 @@ export const EmbeddedMarkdown: React.FC<EmbeddedMarkdownProps> = ({ src, depth =
     }
 
     return (
-        <div className="markdown-embed" style={{
-            borderLeft: '2px solid var(--border-color, #444)',
-            paddingLeft: '16px', margin: '16px 0', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', overflow: 'hidden'
-        }}>
+        <div className="markdown-embed">
             <MarkdownRenderer content={content} depth={depth + 1} />
         </div>
     );

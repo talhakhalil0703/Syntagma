@@ -23,6 +23,7 @@ export interface SettingsState {
     attachmentFolderPath: string;
     newFileLocation: "root" | "current";
     autoUpdate: boolean;
+    baseFontSize: number;
 
     // Modal Visibility
     isCommandPaletteOpen: boolean;
@@ -59,6 +60,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     attachmentFolderPath: "/",
     newFileLocation: "root",
     autoUpdate: true,
+    baseFontSize: 16,
     isCommandPaletteOpen: false,
     isQuickOpen: false,
     isSettingsOpen: false,
@@ -113,6 +115,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                     attachmentFolderPath: parsed.attachmentFolderPath ?? "/",
                     newFileLocation: parsed.newFileLocation ?? "root",
                     autoUpdate: parsed.autoUpdate ?? true,
+                    baseFontSize: parsed.baseFontSize ?? 16,
                     hotkeys: parsed.hotkeys ?? {}
                 });
             } catch (e) {
@@ -132,6 +135,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             attachmentFolderPath: state.attachmentFolderPath,
             newFileLocation: state.newFileLocation,
             autoUpdate: state.autoUpdate,
+            baseFontSize: state.baseFontSize,
             hotkeys: state.hotkeys
         }, null, 2);
 

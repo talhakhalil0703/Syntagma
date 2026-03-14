@@ -126,7 +126,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, dep
                 return <MermaidRenderer chart={String(children).replace(/\n$/, '')} />;
             }
             return (
-                <code className={className} style={{ background: 'var(--bg-secondary)', padding: inline ? '2px 4px' : '16px', borderRadius: '4px', overflowX: 'auto', display: inline ? 'inline' : 'block' }} {...props}>
+                <code className={className} {...props}>
                     {children}
                 </code>
             );
@@ -134,15 +134,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, dep
     }), [vaultPath, openTab]);
 
     return (
-        <div className="markdown-preview-container" style={{
-            padding: '32px 16px',
-            maxWidth: '800px',
-            margin: '0 auto',
-            color: 'var(--text-primary)',
-            fontSize: '16px',
-            lineHeight: 1.6,
-            wordWrap: 'break-word'
-        }}>
+        <div className="markdown-preview-container markdown-rendered">
             <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkWikiLink, remarkMath]}
                 rehypePlugins={[rehypeRaw, rehypeKatex]}
@@ -153,3 +145,4 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, dep
         </div>
     );
 };
+

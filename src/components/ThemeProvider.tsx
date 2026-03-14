@@ -1,10 +1,12 @@
 import React, { useEffect } from "react";
 import { useThemeStore } from "../store/themeStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const { mode, systemDark, setSystemDark } = useThemeStore();
+  const baseFontSize = useSettingsStore((state) => state.baseFontSize);
 
   // Listen for system theme changes
   useEffect(() => {
@@ -16,7 +18,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [setSystemDark]);
 
-  // Apply theme to body
+  // Apply theme and font size to body
   useEffect(() => {
     const isDark = mode === "dark" || (mode === "system" && systemDark);
 
@@ -25,7 +27,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       document.body.removeAttribute("data-theme");
     }
-  }, [mode, systemDark]);
+
+    document.documentElement.style.setProperty('--base-font-size', `${baseFontSize}px`);
+  }, [mode, systemDark, baseFontSize]);
+
 
   return <>{children}</>;
 };

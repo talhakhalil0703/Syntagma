@@ -146,3 +146,23 @@ export const SettingButton = ({ label, onClick, primary = false }: { label: stri
         </button>
     );
 };
+export const SettingSlider = ({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (val: number) => void }) => {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input
+                type="range"
+                min={min}
+                max={max}
+                value={value}
+                onChange={(e) => onChange(parseInt(e.target.value, 10))}
+                style={{
+                    cursor: "pointer",
+                    accentColor: "var(--text-accent)"
+                }}
+            />
+            <span style={{ fontSize: "14px", color: "var(--text-secondary)", minWidth: "32px", textAlign: "right" }}>
+                {value}px
+            </span>
+        </div>
+    );
+};

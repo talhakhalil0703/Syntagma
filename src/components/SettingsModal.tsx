@@ -1,8 +1,9 @@
 import { useSettingsStore } from "../store/settingsStore";
 import { X, Search } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
-import { SettingHeading, SettingItem, SettingToggle, SettingText, SettingSelect } from "./ui/SettingsUI";
+import { SettingHeading, SettingItem, SettingToggle, SettingText, SettingSelect, SettingSlider } from "./ui/SettingsUI";
 import { FileSystemAPI } from "../utils/fs";
+
 
 export function SettingsModal() {
     const [activeTab, setActiveTab] = useState("general");
@@ -16,7 +17,7 @@ export function SettingsModal() {
 
     const {
         isSettingsOpen, closeSettings,
-        attachmentFolderPath, newFileLocation, autoUpdate, updateSetting,
+        attachmentFolderPath, newFileLocation, autoUpdate, baseFontSize, updateSetting,
         pluginSettingsTabs, commands, hotkeys, setHotkey
     } = useSettingsStore();
 
@@ -149,6 +150,20 @@ export function SettingsModal() {
                         }
                     />
 
+                    <SettingItem
+                        name="Base font size"
+                        description="The default text size for the editor and markdown preview."
+                        control={
+                            <SettingSlider
+                                value={baseFontSize}
+                                min={12}
+                                max={24}
+                                onChange={(val) => updateSetting('baseFontSize', val)}
+                            />
+                        }
+                    />
+
+
                     <div style={{ marginTop: '32px', borderTop: '1px solid var(--bg-border)', paddingTop: '16px' }}>
                         <SettingItem
                             name="About Syntagma"
@@ -217,10 +232,11 @@ export function SettingsModal() {
         // Render Dynamic Plugin Tab
         const activePluginTab = pluginSettingsTabs.find(t => t.id === activeTab);
         if (activePluginTab) {
+            const RenderComponent = activePluginTab.render;
             return (
                 <div style={{ padding: '0 40px' }}>
                     <SettingHeading title={activePluginTab.name} />
-                    {activePluginTab.render()}
+                    <RenderComponent />
                 </div>
             );
         }
