@@ -43,6 +43,7 @@ import HtmlExportPlugin from "./plugins/core/export-html/HtmlExportPlugin";
 import PdfExportPlugin from "./plugins/core/export-pdf/PdfExportPlugin";
 import BrowserPlugin from "./plugins/core/browser/BrowserPlugin";
 import ExcalidrawPlugin from "./plugins/core/excalidraw/ExcalidrawPlugin";
+import MermaidPlugin from "./plugins/core/mermaid/MermaidPlugin";
 import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
 import { useVaultIndexStore } from "./store/vaultIndexStore";
 import "./styles/layout.css";
@@ -294,6 +295,14 @@ function App() {
       name: "Excalidraw",
       version: "1.0.0",
       description: "Provides native integration for interactive vector drawing boards saved as JSON text.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(MermaidPlugin, {
+      id: "core-mermaid",
+      name: "Mermaid",
+      version: "1.0.0",
+      description: "Provides native rendering for mermaid diagrams in code blocks.",
       author: "Syntagma Core"
     });
 

@@ -1,19 +1,18 @@
-import type { Extension } from "@codemirror/state";
-import {
-    Decoration,
-    type DecorationSet,
-    EditorView,
-    ViewPlugin,
-    ViewUpdate,
-    WidgetType
-} from "@codemirror/view";
+import { RangeSetBuilder, type EditorState, StateField, type Extension } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
-import { RangeSetBuilder } from "@codemirror/state";
+import { 
+    Decoration, 
+    type DecorationSet, 
+    EditorView, 
+    WidgetType 
+} from "@codemirror/view";
 import { useVaultIndexStore } from "../../store/vaultIndexStore";
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EmbeddedMarkdown } from '../markdown/EmbeddedMarkdown';
 import { ResizableImage } from '../markdown/ResizableImage';
+import { MermaidWidget } from '../markdown/MermaidWidget';
+import { useMermaidStore } from '../../plugins/core/mermaid/mermaidStore';
 
 // Hide decoration for syntax markers
 export const hideMarkDeco = Decoration.replace({});
@@ -191,259 +190,254 @@ class EmbedWidget extends WidgetType {
     }
 }
 
-export function buildDecorations(view: EditorView) {
+class MermaidWidgetCM extends WidgetType {
+    code: string;
+    root: Root | null = null;
+
+    constructor(code: string) {
+        super();
+        this.code = code;
+    }
+
+    eq(other: MermaidWidgetCM) {
+        return this.code === other.code;
+    }
+
+    toDOM() {
+        const wrap = document.createElement("div");
+        wrap.className = "cm-mermaid-widget";
+        this.root = createRoot(wrap);
+        this.root.render(React.createElement(MermaidWidget, { code: this.code }));
+        return wrap;
+    }
+
+    destroy(_dom: HTMLElement) {
+        if (this.root) {
+            this.root.unmount();
+        }
+    }
+
+    ignoreEvent() {
+        return false;
+    }
+}
+
+export function buildDecorations(state: EditorState, selection = state.selection.main) {
     const decorations: { from: number; to: number; deco: Decoration; isLine: boolean }[] = [];
-    const { state } = view;
-    const selection = state.selection.main;
+    const processedNodes = new Set<string>();
 
-    // To avoid hiding syntax when cursor is near/inside it, we keep track of active ranges
-    // For block elements, we might reveal if the cursor is on the same line.
-    // For inline elements, we reveal if the cursor overlaps the element.
-
-    // Helper to check if selection intersects a node
     const isCursorInside = (from: number, to: number) => {
         return selection.from <= to && selection.to >= from;
     };
 
-    // Iterate over the visible tree
-    for (let { from, to } of view.visibleRanges) {
-        // Iteration
-        syntaxTree(state).iterate({
-            from,
-            to,
-            enter: (node) => {
-                const name = node.type.name;
+    syntaxTree(state).iterate({
+        from: 0,
+        to: state.doc.length,
+        enter: (node) => {
+            const nodeId = `node-${node.from}-${node.to}-${node.type.name}`;
+            if (processedNodes.has(nodeId)) return;
+            processedNodes.add(nodeId);
 
-                // For markup tokens, we want to check if the cursor is inside their parent block/inline element
-                // (e.g. check StrongEmphasis instead of StrongEmphasisMark)
-                const parent = node.node?.parent;
-                const checkNode = parent && parent.type.name !== "Document" ? parent : node;
-                const inside = isCursorInside(checkNode.from, checkNode.to);
+            const name = node.type.name;
+            const parent = node.node?.parent;
+            const checkNode = parent && parent.type.name !== "Document" ? parent : node;
+            const inside = isCursorInside(checkNode.from, checkNode.to);
 
-                // --- Line Formatting ---
-                if (name.startsWith("ATXHeading")) {
-                    const level = parseInt(name.replace("ATXHeading", ""), 10);
-                    if (!isNaN(level)) {
-                        const lineDeco = Decoration.line({
-                            class: `cm-header cm-header-${level}`,
-                        });
-                        decorations.push({ from: node.from, to: node.from, deco: lineDeco, isLine: true });
-                    }
-                }
-
-                if (name === "Blockquote") {
-                    const text = state.sliceDoc(node.from, Math.min(node.to, node.from + 100));
-                    const match = text.match(/^>\s*\[!([\w-]+)\](?:(.*))?(?:\n|$)/);
-                    const calloutType = match ? match[1].toLowerCase() : null;
-                    const className = match ? `cm-callout cm-callout-${calloutType}` : `cm-blockquote`;
-
-                    const startLine = state.doc.lineAt(node.from).number;
-                    const endLine = state.doc.lineAt(node.to).number;
-                    for (let l = startLine; l <= endLine; l++) {
-                        const line = state.doc.line(l);
-                        const lineDeco = Decoration.line({ class: className });
-                        decorations.push({ from: line.from, to: line.from, deco: lineDeco, isLine: true });
-                    }
-                }
-
-                // Add background to codeblocks
-                if (name === "FencedCode" || name === "CodeBlock") {
-                    const startLine = state.doc.lineAt(node.from).number;
-                    const endLine = state.doc.lineAt(node.to).number;
-                    for (let l = startLine; l <= endLine; l++) {
-                        const line = state.doc.line(l);
-                        decorations.push({ from: line.from, to: line.from, deco: Decoration.line({ class: "cm-codeblock-line" }), isLine: true });
-                    }
-
-                    // Add copy button
-                    const codeText = state.sliceDoc(node.from, node.to);
-                    const contentMatch = codeText.match(/^```[^\n]*\n([\s\S]*?)```\n?$/);
-                    const copyText = contentMatch ? contentMatch[1] : codeText;
-
-                    decorations.push({
-                        from: node.from,
-                        to: node.from,
-                        deco: Decoration.widget({ widget: new CopyButtonWidget(copyText), side: 1 }),
-                        isLine: false
-                    });
-                }
-
-                if (name === "ListItem") {
-                    const startLine = state.doc.lineAt(node.from).number;
-                    const endLine = state.doc.lineAt(node.to).number;
-                    for (let l = startLine; l <= endLine; l++) {
-                        const line = state.doc.line(l);
-                        decorations.push({ from: line.from, to: line.from, deco: Decoration.line({ class: "cm-list-item-line" }), isLine: true });
-                    }
-                }
-
-                // --- Syntax Hiding (when cursor is not inside the parent element) ---
-                if (!inside) {
-                    if (
-                        name === "HeaderMark" ||
-                        name === "EmphasisMark" ||
-                        name === "StrongEmphasisMark" ||
-                        name === "StrikethroughMark" ||
-                        name === "QuoteMark"
-                    ) {
-                        // For QuoteMark inside callouts
-                        const p = node.node?.parent;
-                        if (name === "QuoteMark" && p && p.type.name === "Blockquote") {
-                            const bqText = state.sliceDoc(p.from, p.to);
-                            if (bqText.match(/^>\s*\[!([\w-]+)\]/)) {
-                                // hide the `> [!type]` entirely if it's the first line
-                                if (node.from === p.from) {
-                                    const match = bqText.match(/^>\s*\[!([\w-]+)\](.*)(?:\n|$)/);
-                                    if (match) {
-                                        // Calculate end without trailing newline
-                                        let replaceLen = match[0].length;
-                                        if (match[0].endsWith('\n')) replaceLen--;
-                                        decorations.push({
-                                            from: node.from,
-                                            to: node.from + replaceLen,
-                                            deco: Decoration.replace({ widget: new CalloutIconWidget(match[1].toLowerCase(), match[2]?.trim() || match[1]) }),
-                                            isLine: false
-                                        });
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-
-                        decorations.push({ from: node.from, to: node.to, deco: hideMarkDeco, isLine: false });
-                    }
-                }
-
-                // --- Additional Styling for Inline Elements ---
-                // Even if cursor is inside or outside, we apply CSS classes to style the text
-                if (name === "StrongEmphasis") {
-                    decorations.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: "cm-strong" }), isLine: false });
-                } else if (name === "Emphasis") {
-                    decorations.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: "cm-em" }), isLine: false });
-                } else if (name === "Strikethrough") {
-                    decorations.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: "cm-strikethrough" }), isLine: false });
-                } else if (name === "InlineCode") {
-                    decorations.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: "cm-inline-code" }), isLine: false });
-                }
-            },
-        });
-
-        // --- Multi-line parsing for Code Blocks (for full line coverage), Frontmatter, etc. ---
-        const text = state.sliceDoc(from, to);
-
-        // Code block line styler (if Lezer doesn't visit empty lines in FencedCode)
-        const docText = state.doc.toString();
-        // Frontmatter
-        if (from === 0) {
-            const fmMatch = docText.match(/^---\n([\s\S]*?)\n---/);
-            if (fmMatch) {
-                const fmTo = fmMatch[0].length;
-                if (!isCursorInside(0, fmTo)) {
-                    // Add the widget on the first line only
-                    decorations.push({
-                        from: 0,
-                        to: 0,
-                        deco: Decoration.widget({ widget: new FrontmatterWidget(fmMatch[1]), side: -1 }),
-                        isLine: false
-                    });
-                    // Hide each frontmatter line individually (replace decorations can't span line breaks)
-                    const startLine = state.doc.lineAt(0).number;
-                    const endLine = state.doc.lineAt(fmTo).number;
-                    for (let l = startLine; l <= endLine; l++) {
-                        const line = state.doc.line(l);
-                        decorations.push({
-                            from: line.from,
-                            to: line.from,
-                            deco: Decoration.line({ class: "cm-frontmatter-hidden" }),
-                            isLine: true
-                        });
-                    }
+            // --- Line Formatting ---
+            if (name.startsWith("ATXHeading")) {
+                const level = parseInt(name.replace("ATXHeading", ""), 10);
+                if (!isNaN(level)) {
+                    decorations.push({ from: node.from, to: node.from, deco: Decoration.line({ class: `cm-header cm-header-${level}` }), isLine: true });
                 }
             }
-        }
 
-        // ![[image]] or ![[note]]
-        const embedRegex = /!\[\[([^\]]+)\]\]/g;
-        let m;
-        while ((m = embedRegex.exec(text)) !== null) {
-            const matchFrom = from + m.index;
-            const matchTo = matchFrom + m[0].length;
-            if (!isCursorInside(matchFrom, matchTo)) {
-                let innerText = m[1];
-                let isMarkdown = false;
-                
-                let cleanSrc = innerText.includes('|') ? innerText.split('|')[0] : innerText;
-                
-                // Determine if it's an image or markdown. Assume image unless it ends with .md, or there's no extension
-                const extMatch = cleanSrc.match(/\.([a-zA-Z0-9]+)$/);
-                if (extMatch && extMatch[1].toLowerCase() === 'md') {
-                    isMarkdown = true;
-                } else if (!extMatch) {
-                    // No extension, typical for markdown note transclusions in Obsidian
-                    isMarkdown = true; 
+            if (name === "Blockquote") {
+                const text = state.sliceDoc(node.from, Math.min(node.to, node.from + 100));
+                const match = text.match(/^>\s*\[!([\w-]+)\](?:(.*))?(?:\n|$)/);
+                const className = match ? `cm-callout cm-callout-${match[1].toLowerCase()}` : `cm-blockquote`;
+
+                const startLine = state.doc.lineAt(node.from).number;
+                const endLine = state.doc.lineAt(node.to).number;
+                for (let l = startLine; l <= endLine; l++) {
+                    const line = state.doc.line(l);
+                    decorations.push({ from: line.from, to: line.from, deco: Decoration.line({ class: className }), isLine: true });
                 }
+            }
 
-                if (isMarkdown) {
+            if (name === "FencedCode" || name === "CodeBlock") {
+                const codeText = state.sliceDoc(node.from, node.to);
+                const isMermaid = codeText.trim().startsWith('```mermaid');
+                const renderMermaid = useMermaidStore.getState().renderInViewMode;
+
+                if (isMermaid && renderMermaid && !inside) {
+                    const lines = codeText.trim().split('\n');
+                    const mermaidCode = lines.slice(1, lines.length - 1).join('\n');
+                    
                     decorations.push({
-                        from: matchFrom,
-                        to: matchTo,
-                        deco: Decoration.replace({ widget: new EmbedWidget(innerText) }),
+                        from: node.from,
+                        to: node.to,
+                        deco: Decoration.replace({ 
+                            widget: new MermaidWidgetCM(mermaidCode),
+                            // side is still useful for ordering against other decorations at exactly node.from/to
+                            side: 1 
+                        }),
                         isLine: false
                     });
-                } else {
-                    decorations.push({
-                        from: matchFrom,
-                        to: matchTo,
-                        deco: Decoration.replace({ widget: new ImageWidget(innerText) }),
-                        isLine: false
-                    });
+                    return;
                 }
-            } else {
+
+                const contentMatch = codeText.match(/^```[^\n]*\n([\s\S]*?)```\n?$/);
+                const copyText = contentMatch ? contentMatch[1] : codeText;
+                const startLine = state.doc.lineAt(node.from).number;
+                const endLine = state.doc.lineAt(node.to).number;
+                for (let l = startLine; l <= endLine; l++) {
+                    const line = state.doc.line(l);
+                    decorations.push({ from: line.from, to: line.from, deco: Decoration.line({ class: "cm-codeblock-line" }), isLine: true });
+                }
                 decorations.push({
-                    from: matchFrom,
-                    to: matchTo,
-                    deco: Decoration.mark({ class: "cm-wikilink-edit" }),
+                    from: node.from, to: node.from,
+                    deco: Decoration.widget({ widget: new CopyButtonWidget(copyText), side: 1 }),
                     isLine: false
                 });
             }
+            if (name === "ListItem") {
+                const startLine = state.doc.lineAt(node.from).number;
+                const endLine = state.doc.lineAt(node.to).number;
+                for (let l = startLine; l <= endLine; l++) {
+                    const line = state.doc.line(l);
+                    decorations.push({ from: line.from, to: line.from, deco: Decoration.line({ class: "cm-list-item-line" }), isLine: true });
+                }
+            }
+
+            if (!inside) {
+                if (["HeaderMark", "EmphasisMark", "StrongEmphasisMark", "StrikethroughMark", "QuoteMark"].includes(name)) {
+                    if (name === "QuoteMark" && parent?.type.name === "Blockquote") {
+                        const bqText = state.sliceDoc(parent.from, parent.to);
+                        const match = bqText.match(/^>\s*\[!([\w-]+)\](.*)(?:\n|$)/);
+                        if (match && node.from === parent.from) {
+                            let replaceLen = match[0].endsWith('\n') ? match[0].length - 1 : match[0].length;
+                            decorations.push({
+                                from: node.from, to: node.from + replaceLen,
+                                deco: Decoration.replace({ widget: new CalloutIconWidget(match[1].toLowerCase(), match[2]?.trim() || match[1]) }),
+                                isLine: false
+                            });
+                            return;
+                        }
+                    }
+                    decorations.push({ from: node.from, to: node.to, deco: hideMarkDeco, isLine: false });
+                }
+            }
+
+            if (name === "StrongEmphasis") decorations.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: "cm-strong" }), isLine: false });
+            else if (name === "Emphasis") decorations.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: "cm-em" }), isLine: false });
+            else if (name === "Strikethrough") decorations.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: "cm-strikethrough" }), isLine: false });
+            else if (name === "InlineCode") decorations.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: "cm-inline-code" }), isLine: false });
+        },
+    });
+
+    const docText = state.doc.toString();
+    const fmMatch = docText.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch && !isCursorInside(0, fmMatch[0].length)) {
+        decorations.push({ 
+            from: 0, 
+            to: fmMatch[0].length, 
+            deco: Decoration.replace({ widget: new FrontmatterWidget(fmMatch[1]) }), 
+            isLine: false 
+        });
+    }
+
+    const embedRegex = /!\[\[([^\]]+)\]\]/g;
+    let m;
+    while ((m = embedRegex.exec(docText)) !== null) {
+        const from = m.index, to = from + m[0].length;
+        if (processedNodes.has(`embed-${from}-${to}`)) continue;
+        if (!isCursorInside(from, to)) {
+            const isMarkdown = !m[1].match(/\.(png|jpg|jpeg|gif|webp|svg)$/i);
+            const deco = Decoration.replace({ widget: isMarkdown ? new EmbedWidget(m[1]) : new ImageWidget(m[1]) });
+            decorations.push({ from, to, deco, isLine: false });
+        } else {
+            decorations.push({ from, to: from + m[0].length, deco: Decoration.mark({ class: "cm-wikilink-edit" }), isLine: false });
         }
     }
 
-    // Sort decorations by `from`, then `to` ascending to satisfy RangeSetBuilder
-    decorations.sort((a, b) => {
+    // A more comprehensive side-assignment to enforce strict ordering
+    const getSide = (deco: Decoration, isLine: boolean, from: number, to: number) => {
+        // Explicit sides from specs take precedence
+        if ((deco as any).spec?.side !== undefined) return (deco as any).spec.side;
+        
+        if (isLine) {
+            // Line decorations must come before any widgets/marks at the same position.
+            // CM internally uses very small numbers for line decorations.
+            if (deco.spec.class?.includes("cm-header")) return -1100;
+            if (deco.spec.class?.includes("cm-callout")) return -1050;
+            if (deco.spec.class?.includes("cm-mermaid-hidden")) return -1000;
+            if (deco.spec.class?.includes("cm-codeblock-line")) return -950;
+            if (deco.spec.class?.includes("cm-list-item-line")) return -900;
+            if (deco.spec.class?.includes("cm-frontmatter-hidden")) return -850;
+            return -800;
+        }
+
+        // Widgets usually come after marks at the same start position
+        if (deco.spec.widget) return 10;
+        
+        // Replacement/Mark decorations
+        if (deco.spec.replace) return 0;
+        
+        // Default for marks
+        return from === to ? 0 : -1;
+    };
+
+    // Prepare and sort
+    const decoratedList = decorations.map((d, index) => ({
+        ...d,
+        side: getSide(d.deco, d.isLine, d.from, d.to),
+        originalOrder: index
+    }));
+
+    decoratedList.sort((a, b) => {
         if (a.from !== b.from) return a.from - b.from;
-        // Line decorations should be added first at the same position, then mark/replace
-        if (a.isLine && !b.isLine) return -1;
-        if (!a.isLine && b.isLine) return 1;
-        return a.to - b.to;
+        if (a.side !== b.side) return a.side - b.side;
+        if (a.to !== b.to) return a.to - b.to;
+        return a.originalOrder - b.originalOrder;
     });
 
     const builder = new RangeSetBuilder<Decoration>();
-    for (const { from, to, deco } of decorations) {
-        builder.add(from, to, deco);
+    let lastFrom = -1, lastSide = -2e9;
+
+    for (const { from, to, deco, side } of decoratedList) {
+        // RangeSetBuilder rule: from must be non-decreasing.
+        // If from is same, side must be strictly increasing.
+        if (from < lastFrom) continue;
+        if (from === lastFrom && side <= lastSide) {
+            // If they have the same position and side, we can only add one.
+            // We skip the subsequent ones to prevent RangeError.
+            continue;
+        }
+
+        try {
+            builder.add(from, to, deco);
+            lastFrom = from;
+            lastSide = side;
+        } catch (e) {
+            console.warn("Failsafe: skipping decoration due to RangeSetBuilder error", e, { from, to, deco, side });
+        }
     }
 
     return builder.finish();
 }
 
-const livePreviewPlugin = ViewPlugin.fromClass(
-    class {
-        decorations: DecorationSet;
-
-        constructor(view: EditorView) {
-            this.decorations = buildDecorations(view);
-        }
-
-        update(update: ViewUpdate) {
-            if (update.docChanged || update.viewportChanged || update.selectionSet) {
-                this.decorations = buildDecorations(update.view);
-            }
-        }
+const livePreviewField = StateField.define<DecorationSet>({
+    create(state) {
+        return buildDecorations(state);
     },
-    {
-        decorations: (v) => v.decorations,
-    }
-);
+    update(deco, tr) {
+        if (tr.docChanged || tr.state.selection.main.from !== tr.startState.selection.main.from || tr.state.selection.main.to !== tr.startState.selection.main.to) {
+            return buildDecorations(tr.state);
+        }
+        return deco.map(tr.changes);
+    },
+    provide: f => EditorView.decorations.from(f)
+});
 
 const livePreviewTheme = EditorView.theme({
     ".cm-header": {
@@ -601,9 +595,20 @@ const livePreviewTheme = EditorView.theme({
         overflow: "hidden",
         padding: "0 !important",
         margin: "0 !important",
+    },
+    ".cm-mermaid-hidden": {
+        fontSize: "0",
+        lineHeight: "0",
+        height: "0",
+        overflow: "hidden",
+        padding: "0 !important",
+        margin: "0 !important",
     }
 });
 
 export const livePreviewExtension = (): Extension => {
-    return [livePreviewPlugin, livePreviewTheme];
+    return [
+        livePreviewField,
+        livePreviewTheme
+    ];
 };
