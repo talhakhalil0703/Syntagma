@@ -394,7 +394,7 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
                     <GitCommitView tabId={activeTabId} />
                 ) : (activeTabId?.endsWith(".excalidraw") || activeTabId?.endsWith(".excalidraw.md")) ? (
                     <ExcalidrawView key={activeTabId} fileId={activeTabId} fileContent={fileContent} onChange={(val) => handleEditorChange(val, activeTabId)} />
-                ) : (activeTabId?.toLowerCase().endsWith(".png") || activeTabId?.toLowerCase().endsWith(".jpg") || activeTabId?.toLowerCase().endsWith(".jpeg") || activeTabId?.toLowerCase().endsWith(".svg")) ? (
+                ) : (activeTabId?.toLowerCase().endsWith(".png") || activeTabId?.toLowerCase().endsWith(".jpg") || activeTabId?.toLowerCase().endsWith(".jpeg") || activeTabId?.toLowerCase().endsWith(".svg") || activeTabId?.startsWith("image-edit-empty-")) ? (
                     <ImageEditView key={activeTabId} fileId={activeTabId} />
                 ) : (
                     <Editor

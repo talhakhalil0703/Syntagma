@@ -31,12 +31,30 @@ interface DrawingElement {
     image?: HTMLImageElement; // For pasted images
 }
 
+const Tools = [
+    { id: 'select', icon: <MousePointer2 size={18} />, label: 'Select (V)' },
+    { id: 'rect', icon: <Square size={18} />, label: 'Rectangle (R)' },
+    { id: 'circle', icon: <Circle size={18} />, label: 'Sphere (O)' },
+    { id: 'pen', icon: <Pencil size={18} />, label: 'Free hand (P)' },
+    { id: 'line', icon: <Minus size={18} />, label: 'Line (L)' },
+    { id: 'arrow', icon: <ArrowUpRight size={18} />, label: 'Arrow (A)' },
+    { id: 'text', icon: <Type size={18} />, label: 'Text (T)' },
+    { id: 'zoom', icon: <Search size={18} />, label: 'Zoom (Z)' },
+    { id: 'step', icon: <Hash size={18} />, label: 'Step (S)' },
+    { id: 'erase', icon: <Eraser size={18} />, label: 'Erase (E)' },
+    { id: 'blur', icon: <Droplets size={18} />, label: 'Blur (B)' },
+    { id: 'pixelate', icon: <Grid3X3 size={18} />, label: 'Pixelate (X)' },
+    { id: 'crop', icon: <Crop size={18} />, label: 'Crop (K)' },
+];
+
 export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [image, setImage] = useState<HTMLImageElement | null>(null);
     const [scale, setScale] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
+    const [canvasSize, setCanvasSize] = useState({ width: 500, height: 500 });
+    const [canvasOrigin, setCanvasOrigin] = useState({ x: 0, y: 0 });
     const [activeTool, setActiveTool] = useState<Tool>('select');
     const [elements, setElements] = useState<DrawingElement[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -150,6 +168,24 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
 
 
     useEffect(() => {
+        if (fileId.startsWith('image-edit-empty-')) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 500;
+            canvas.height = 500;
+            const ctx = canvas.getContext('2d')!;
+            ctx.fillStyle = isDark ? '#1a1a1a' : '#ffffff';
+            ctx.fillRect(0, 0, 500, 500);
+            
+            const img = new Image();
+            img.onload = () => {
+                setImage(img);
+                setCanvasSize({ width: 500, height: 500 });
+                centerImage(img);
+            };
+            img.src = canvas.toDataURL();
+            return;
+        }
+
         const handlePaste = async (e: ClipboardEvent) => {
             const items = e.clipboardData?.items;
             if (!items) return;
@@ -164,8 +200,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                             id: Date.now().toString(),
                             type: 'image',
                             x: 50, y: 50,
-                            width: img.width / 2,
-                            height: img.height / 2,
+                            width: img.width,
+                            height: img.height,
                             image: img,
                             color: '#fff',
                             fillColor: 'transparent',
@@ -191,6 +227,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 const img = new Image();
                 img.onload = () => {
                     setImage(img);
+                    setCanvasSize({ width: img.width, height: img.height });
                     centerImage(img);
                 };
                 img.src = dataUrl;
@@ -200,6 +237,51 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         };
         loadImage();
     }, [fileId, centerImage]);
+
+    useEffect(() => {
+        if (!image) return;
+        let minX = 0;
+        let minY = 0;
+        let maxX = image.width;
+        let maxY = image.height;
+
+        const allElements = [...elements];
+        if (currentElement) allElements.push(currentElement);
+
+        allElements.forEach(el => {
+            if (el.points && el.points.length > 0) {
+                el.points.forEach(p => {
+                    minX = Math.min(minX, p.x);
+                    minY = Math.min(minY, p.y);
+                    maxX = Math.max(maxX, p.x);
+                    maxY = Math.max(maxY, p.y);
+                });
+            } else if (el.width !== undefined && el.height !== undefined) {
+                const x1 = el.x;
+                const y1 = el.y;
+                const x2 = el.x + el.width;
+                const y2 = el.y + el.height;
+                minX = Math.min(minX, x1, x2);
+                minY = Math.min(minY, y1, y2);
+                maxX = Math.max(maxX, x1, x2);
+                maxY = Math.max(maxY, y1, y2);
+            } else {
+                // Fallback for elements with only x, y (text, step, etc.)
+                minX = Math.min(minX, el.x);
+                minY = Math.min(minY, el.y);
+                maxX = Math.max(maxX, el.x);
+                maxY = Math.max(maxY, el.y);
+            }
+        });
+
+        const newWidth = maxX - minX;
+        const newHeight = maxY - minY;
+
+        if (newWidth !== canvasSize.width || newHeight !== canvasSize.height || minX !== canvasOrigin.x || minY !== canvasOrigin.y) {
+            setCanvasSize({ width: newWidth, height: newHeight });
+            setCanvasOrigin({ x: minX, y: minY });
+        }
+    }, [elements, currentElement, image, canvasSize.width, canvasSize.height, canvasOrigin.x, canvasOrigin.y]);
 
     const drawElement = useCallback((ctx: CanvasRenderingContext2D, el: DrawingElement) => {
         ctx.strokeStyle = el.color;
@@ -349,7 +431,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 ctx.restore();
                 break;
         }
-    }, [image]);
+    }, [image, canvasSize, isDark]);
 
     useEffect(() => {
         if (!image || !canvasRef.current) return;
@@ -366,6 +448,9 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         ctx.save();
         ctx.translate(offset.x, offset.y);
         ctx.scale(scale, scale);
+        
+        ctx.fillStyle = isDark ? '#1a1a1a' : '#ffffff';
+        ctx.fillRect(canvasOrigin.x, canvasOrigin.y, canvasSize.width, canvasSize.height);
         
         ctx.drawImage(image, 0, 0);
 
@@ -414,8 +499,24 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
             }
         }
 
+        if (image) {
+            ctx.strokeStyle = 'var(--bg-border)';
+            ctx.setLineDash([]);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(canvasOrigin.x, canvasOrigin.y, canvasSize.width, canvasSize.height);
+
+            // Resizing corner handle (bottom right)
+            if ((activeTool as string) === 'select' && !selectedElementId) {
+                ctx.fillStyle = '#00aaff';
+                ctx.beginPath();
+                ctx.arc(canvasOrigin.x + canvasSize.width, canvasOrigin.y + canvasSize.height, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
         ctx.restore();
-    }, [image, scale, offset, elements, currentElement, drawElement, selectedElementId]);
+    }, [image, scale, offset, elements, currentElement, drawElement, selectedElementId, canvasSize, activeTool, isDark]);
 
     const getMousePos = useCallback((e: React.MouseEvent) => {
         const rect = canvasRef.current!.getBoundingClientRect();
@@ -436,8 +537,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         
         const { x, y } = getMousePos(e);
 
-        // Check for handles first if an element is selected
-        if (selectedElementId) {
+        // Check for handles first if an element is selected and tool is 'select'
+        if (activeTool === 'select' && selectedElementId) {
             const el = elements.find(e => e.id === selectedElementId);
             if (el) {
                 if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'circle' || el.type === 'image') {
@@ -514,6 +615,12 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 setLastMousePos({ x, y });
             } else {
                 setSelectedElementId(null);
+                // Check for canvas resize handle (bottom-right)
+                if (Math.abs(x - canvasSize.width) < 10 && Math.abs(y - canvasSize.height) < 10) {
+                    setIsDrawing(true);
+                    setActiveHandle(999); // Special handle for canvas resize
+                    setLastMousePos({ x, y });
+                }
             }
             return;
         }
@@ -554,12 +661,20 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         }
 
         if (activeTool === 'text') {
+            if (textOverlay && textInputValue.trim()) {
+                handleTextSubmit();
+            }
             const rect = canvasRef.current!.getBoundingClientRect();
+            const canvasX = x;
+            const canvasY = y;
+            const screenX = e.clientX - rect.left;
+            const screenY = e.clientY - rect.top;
+            
             setTextOverlay({ 
-                x: e.clientX - rect.left, 
-                y: e.clientY - rect.top,
-                canvasX: x,
-                canvasY: y
+                x: screenX, 
+                y: screenY,
+                canvasX,
+                canvasY
             });
             setTextInputValue('');
             return;
@@ -700,8 +815,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         setCurrentElement(null);
     };
 
-    const handleTextSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleTextSubmit = useCallback((e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         if (textOverlay && textInputValue.trim()) {
             const newEl: DrawingElement = {
                 id: Date.now().toString(),
@@ -715,10 +830,11 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 fontSize: settings.fontSize
             };
             saveToHistory([...elements, newEl]);
+            setSelectedElementId(newEl.id);
         }
         setTextOverlay(null);
         setTextInputValue('');
-    };
+    }, [textOverlay, textInputValue, elements, settings, saveToHistory]);
 
     const handleDoubleClick = (e: React.MouseEvent) => {
         const { x, y } = getMousePos(e);
@@ -766,13 +882,19 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     const saveImage = async (saveAs = false) => {
         if (!image) return;
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = image.width;
-        tempCanvas.height = image.height;
+        tempCanvas.width = canvasSize.width;
+        tempCanvas.height = canvasSize.height;
         const ctx = tempCanvas.getContext('2d');
         if (!ctx) return;
 
+        ctx.fillStyle = isDark ? '#1a1a1a' : '#ffffff';
+        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        
+        ctx.save();
+        ctx.translate(-canvasOrigin.x, -canvasOrigin.y);
         ctx.drawImage(image, 0, 0);
         elements.forEach(el => drawElement(ctx, el));
+        ctx.restore();
 
         const dataUrl = tempCanvas.toDataURL('image/png');
         if (saveAs) {
@@ -792,12 +914,19 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     const copyToClipboard = async () => {
         if (!image) return;
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = image.width;
-        tempCanvas.height = image.height;
+        tempCanvas.width = canvasSize.width;
+        tempCanvas.height = canvasSize.height;
         const ctx = tempCanvas.getContext('2d');
         if (!ctx) return;
+        
+        ctx.fillStyle = isDark ? '#1a1a1a' : '#ffffff';
+        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        
+        ctx.save();
+        ctx.translate(-canvasOrigin.x, -canvasOrigin.y);
         ctx.drawImage(image, 0, 0);
         elements.forEach(el => drawElement(ctx, el));
+        ctx.restore();
         
         tempCanvas.toBlob(async (blob) => {
             if (blob) {
@@ -810,22 +939,6 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
             }
         });
     };
-
-    const Tools = [
-        { id: 'select', icon: <MousePointer2 size={18} />, label: 'Select (V)' },
-        { id: 'rect', icon: <Square size={18} />, label: 'Rectangle (R)' },
-        { id: 'circle', icon: <Circle size={18} />, label: 'Sphere (O)' },
-        { id: 'pen', icon: <Pencil size={18} />, label: 'Free hand (P)' },
-        { id: 'line', icon: <Minus size={18} />, label: 'Line (L)' },
-        { id: 'arrow', icon: <ArrowUpRight size={18} />, label: 'Arrow (A)' },
-        { id: 'text', icon: <Type size={18} />, label: 'Text (T)' },
-        { id: 'zoom', icon: <Search size={18} />, label: 'Zoom (Z)' },
-        { id: 'step', icon: <Hash size={18} />, label: 'Step (S)' },
-        { id: 'erase', icon: <Eraser size={18} />, label: 'Erase (E)' },
-        { id: 'blur', icon: <Droplets size={18} />, label: 'Blur (B)' },
-        { id: 'pixelate', icon: <Grid3X3 size={18} />, label: 'Pixelate (X)' },
-        { id: 'crop', icon: <Crop size={18} />, label: 'Crop (K)' },
-    ];
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -886,7 +999,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                     {Tools.map(t => (
                         <button 
                             key={t.id} 
-                            className={`toolbar-btn ${activeTool === t.id ? 'active' : ''} ${isSvg && t.id !== 'select' ? 'disabled' : ''}`}
+                            className={`toolbar-btn ${(activeTool as string) === t.id ? 'active' : ''} ${isSvg && t.id !== 'select' ? 'disabled' : ''}`}
                             onClick={() => !isSvg && setActiveTool(t.id as Tool)}
                             title={t.label}
                         >
@@ -975,18 +1088,25 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
             {textOverlay && (
                 <div 
                     className="text-input-overlay" 
-                    style={{ left: textOverlay.x, top: textOverlay.y }}
+                    style={{ 
+                        left: textOverlay.x, 
+                        top: textOverlay.y,
+                    }}
                 >
                     <form onSubmit={handleTextSubmit}>
                         <input 
                             autoFocus 
                             value={textInputValue}
                             onChange={e => setTextInputValue(e.target.value)}
-                            onBlur={() => setTextOverlay(null)}
+                            onBlur={() => handleTextSubmit()}
                             onKeyDown={e => {
-                                if (e.key === 'Escape') setTextOverlay(null);
+                                if (e.key === 'Escape') {
+                                    setTextOverlay(null);
+                                    setTextInputValue('');
+                                }
                             }}
-                            placeholder="Type and press Enter..."
+                            placeholder="Type..."
+                            style={{ fontSize: settings.fontSize + 'px', color: settings.color }}
                         />
                     </form>
                 </div>
