@@ -1,0 +1,122 @@
+.image-edit-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bg-secondary);
+}
+
+.image-edit-container.dark {
+    background-color: #1a1a1a;
+}
+
+.image-edit-container.light {
+    background-color: #f0f0f0;
+}
+
+.image-edit-toolbar {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-primary);
+    border: 1px solid var(--bg-border);
+    border-radius: 8px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+}
+
+.toolbar-section {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.toolbar-section.settings {
+    gap: 8px;
+    padding-left: 8px;
+    border-left: 1px solid var(--bg-border);
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--bg-border);
+}
+
+.toolbar-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.toolbar-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.toolbar-btn.active {
+    background: var(--text-accent);
+    color: white;
+}
+
+.toolbar-btn.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.toolbar-btn i {
+    font-size: 18px;
+}
+
+input[type="color"] {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--bg-border);
+    border-radius: 4px;
+    cursor: pointer;
+    background: none;
+}
+
+.svg-overlay {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 16px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border-radius: 20px;
+    backdrop-filter: blur(4px);
+    font-weight: 500;
+}
+.text-input-overlay {
+    position: absolute;
+    background: var(--bg-primary);
+    border: 1px solid var(--text-accent);
+    padding: 4px 8px;
+    border-radius: 4px;
+    z-index: 200;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.text-input-overlay input {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    outline: none;
+    font-size: 14px;
+    width: 180px;
+}

@@ -63,13 +63,21 @@ ipcMain.handle('fs:writeFile', async (event, { filePath, content }) => {
         if (!fs.existsSync(dir)) {
             await fsPromises.mkdir(dir, { recursive: true });
         }
-        await fsPromises.writeFile(filePath, content, 'utf-8');
+        
+        if (typeof content === 'string' && content.startsWith('data:')) {
+            // Handle data URLs for binary files (like images)
+            const base64Data = content.split(';base64,').pop();
+            await fsPromises.writeFile(filePath, Buffer.from(base64Data, 'base64'));
+        } else {
+            await fsPromises.writeFile(filePath, content, 'utf-8');
+        }
         return { success: true };
     } catch (error) {
         console.error("Failed to write file:", error);
         return { success: false, error: error.message };
     }
 });
+
 
 // Read file utility
 ipcMain.handle('fs:readFile', async (event, { filePath }) => {

@@ -8,6 +8,7 @@ import { BrowserView } from "../plugins/core/browser/BrowserView";
 import { ExcalidrawView } from "../plugins/core/excalidraw/ExcalidrawView";
 import { GitChangesView } from "../plugins/core/git/GitChangesView";
 import { GitCommitView } from "../plugins/core/git/GitCommitView";
+import { ImageEditView } from "../plugins/core/image-edit/ImageEditView";
 import { Editor } from "./Editor";
 import { useContextMenuStore } from "../store/contextMenuStore";
 
@@ -393,6 +394,8 @@ const EditorGroupView: React.FC<{ group: any; isTopLeft: boolean; isTopRight: bo
                     <GitCommitView tabId={activeTabId} />
                 ) : (activeTabId?.endsWith(".excalidraw") || activeTabId?.endsWith(".excalidraw.md")) ? (
                     <ExcalidrawView key={activeTabId} fileId={activeTabId} fileContent={fileContent} onChange={(val) => handleEditorChange(val, activeTabId)} />
+                ) : (activeTabId?.toLowerCase().endsWith(".png") || activeTabId?.toLowerCase().endsWith(".jpg") || activeTabId?.toLowerCase().endsWith(".jpeg") || activeTabId?.toLowerCase().endsWith(".svg")) ? (
+                    <ImageEditView key={activeTabId} fileId={activeTabId} />
                 ) : (
                     <Editor
                         value={fileContent}

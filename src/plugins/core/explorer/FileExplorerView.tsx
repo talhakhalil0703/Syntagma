@@ -583,10 +583,13 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ entry, depth, getFlatPaths,
         if (entry.isDirectory) {
             setExpanded(!expanded);
         } else {
-            if (entry.name.endsWith('.md') || entry.name.endsWith('.excalidraw') || entry.name.endsWith('.excalidraw.md')) {
+            const ext = entry.name.toLowerCase();
+            if (ext.endsWith('.md') || ext.endsWith('.excalidraw') || ext.endsWith('.excalidraw.md') || 
+                ext.endsWith('.png') || ext.endsWith('.jpg') || ext.endsWith('.jpeg') || ext.endsWith('.svg')) {
                 openTab({ id: entry.path, title: entry.name });
             }
         }
+
     };
 
     /* ---- Drag-and-drop ---- */
