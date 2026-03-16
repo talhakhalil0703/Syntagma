@@ -333,8 +333,9 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                         ctx.rotate(angle);
                         ctx.beginPath();
                         ctx.moveTo(0, 0);
-                        ctx.lineTo(-15, -7);
-                        ctx.lineTo(-15, 7);
+                        const headSize = Math.max(10, el.strokeWidth * 4);
+                        ctx.lineTo(-headSize, -headSize * 0.5);
+                        ctx.lineTo(-headSize, headSize * 0.5);
                         ctx.closePath();
                         ctx.fillStyle = el.color;
                         ctx.fill();
@@ -355,20 +356,33 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 ctx.fillText(el.text || '', el.x, el.y);
                 break;
             case 'step':
-                const badgeRadius = 12;
+                const baseRadius = 12;
+                const scaleFactor = (el.fontSize || 14) / 14;
+                const r = baseRadius * scaleFactor;
+                
                 ctx.save();
                 ctx.translate(el.x, el.y);
-                if (el.direction) {
-                    const angle = Math.atan2(el.direction.y, el.direction.x);
-                    ctx.rotate(angle);
-                }
+                ctx.fillStyle = el.fillColor;
                 
-                // Draw tear-drop
-                ctx.beginPath();
-                ctx.arc(0, 0, badgeRadius, Math.PI * 0.25, Math.PI * 1.75);
-                ctx.lineTo(badgeRadius * 2, 0);
-                ctx.closePath();
-                ctx.fill();
+                if (el.direction && (Math.abs(el.direction.x) > 5 || Math.abs(el.direction.y) > 5)) {
+                    const angle = Math.atan2(el.direction.y, el.direction.x);
+                    const dist = Math.sqrt(el.direction.x * el.direction.x + el.direction.y * el.direction.y);
+                    const stretch = Math.min(dist, r * 3);
+                    
+                    ctx.rotate(angle);
+                    
+                    // Draw elongated tear-drop
+                    ctx.beginPath();
+                    ctx.arc(0, 0, r, Math.PI * 0.35, Math.PI * 1.65);
+                    ctx.lineTo(r + stretch, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    // Regular circle if not dragging
+                    ctx.beginPath();
+                    ctx.arc(0, 0, r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 
                 ctx.restore();
                 
@@ -586,7 +600,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
             }
         }
 
-        if (activeTool === 'select') {
+        if (activeTool === 'select' || (activeTool !== 'erase' && activeTool !== 'crop' && activeTool !== 'zoom')) {
             // Find element under cursor
             const foundIdx = [...elements].reverse().findIndex(el => {
                 if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'image') {
@@ -613,7 +627,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 setActiveHandle(-1);
                 setIsDrawing(true);
                 setLastMousePos({ x, y });
-            } else {
+                return; // Selection handled, don't start drawing new shape
+            } else if (activeTool === 'select') {
                 setSelectedElementId(null);
                 // Check for canvas resize handle (bottom-right)
                 if (Math.abs(x - canvasSize.width) < 10 && Math.abs(y - canvasSize.height) < 10) {
@@ -621,8 +636,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                     setActiveHandle(999); // Special handle for canvas resize
                     setLastMousePos({ x, y });
                 }
+                return;
             }
-            return;
         }
 
         if (activeTool === 'erase') {
@@ -997,14 +1012,15 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 <div className="toolbar-divider" />
                 <div className="toolbar-section">
                     {Tools.map(t => (
-                        <button 
-                            key={t.id} 
-                            className={`toolbar-btn ${(activeTool as string) === t.id ? 'active' : ''} ${isSvg && t.id !== 'select' ? 'disabled' : ''}`}
-                            onClick={() => !isSvg && setActiveTool(t.id as Tool)}
-                            title={t.label}
-                        >
-                            {t.icon}
-                        </button>
+                        <div key={t.id} className="toolbar-btn-wrapper">
+                            <button 
+                                className={`toolbar-btn ${(activeTool as string) === t.id ? 'active' : ''} ${isSvg && t.id !== 'select' ? 'disabled' : ''}`}
+                                onClick={() => !isSvg && setActiveTool(t.id as Tool)}
+                            >
+                                {t.icon}
+                            </button>
+                            <span className="tooltip">{t.label}</span>
+                        </div>
                     ))}
                 </div>
                 <div className="toolbar-divider" />
@@ -1092,6 +1108,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                         left: textOverlay.x, 
                         top: textOverlay.y,
                     }}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                 >
                     <form onSubmit={handleTextSubmit}>
                         <input 
@@ -1104,9 +1122,16 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                                     setTextOverlay(null);
                                     setTextInputValue('');
                                 }
+                                e.stopPropagation();
                             }}
                             placeholder="Type..."
-                            style={{ fontSize: settings.fontSize + 'px', color: settings.color }}
+                            style={{ 
+                                fontSize: (settings.fontSize * scale) + 'px', 
+                                color: settings.color,
+                                border: 'none',
+                                background: 'transparent',
+                                outline: 'none'
+                             }}
                         />
                     </form>
                 </div>
