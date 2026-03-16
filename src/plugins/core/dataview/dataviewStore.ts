@@ -79,28 +79,10 @@ export const useDataviewStore = create<DataviewState>((set, get) => ({
 
         try {
             // First, scan the vault configuration
-            // Note: FileSystemAPI currently only has readDir which is not recursive.
-            // Using readDirRecursive from the proposed architecture. We need to implement it in fs.ts first, 
-            // but for now let's assume FileSystemAPI.readDirRecursive exists or we invoke an IPC.
-            // Wait, FileSystemAPI.readDirRecursive does not exist natively yet in this project codebase.
-            // Let's implement a recursive scan natively here acting as the engine.
-            const allFiles: string[] = [];
-
-            async function scanDir(targetPath: string) {
-                const entries = await (window as any).electron.invoke('fs:readDir', targetPath);
-                for (const entry of entries) {
-                    if (entry.name.startsWith('.')) continue; // skip hidden
-
-                    const fullPath = `${targetPath}/${entry.name}`;
-                    if (entry.isDirectory) {
-                        await scanDir(fullPath);
-                    } else if (entry.name.endsWith('.md')) {
-                        allFiles.push(fullPath);
-                    }
-                }
-            }
-
-            await scanDir(vaultPath);
+            // Use the standard recursive directory reader
+            const allFiles = (await FileSystemAPI.readDirRecursive(vaultPath))
+                .filter(item => !item.isDirectory && item.name.endsWith('.md'))
+                .map(item => item.path);
 
             // Now parse each file
             for (const filePath of allFiles) {
