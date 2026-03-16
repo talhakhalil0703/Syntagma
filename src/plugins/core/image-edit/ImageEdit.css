@@ -41,7 +41,7 @@
     align-items: center;
     gap: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    z-index: 100;
+    z-index: 1000;
 }
 
 .toolbar-section {
@@ -137,7 +137,7 @@ input[type="color"] {
     transition: all 0.2s;
     pointer-events: none;
     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    z-index: 200;
+    z-index: 10000;
 }
 
 .toolbar-btn-wrapper:hover .tooltip {
@@ -148,12 +148,12 @@ input[type="color"] {
 
 .text-input-overlay {
     position: absolute;
-    background: var(--bg-primary);
-    border: 1px solid var(--text-accent);
-    padding: 0px 4px;
+    background: var(--bg-primary, #ffffff);
+    border: 2px solid var(--text-accent, #00aaff);
+    padding: 4px 8px;
     border-radius: 4px;
-    z-index: 200;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 2000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .text-input-overlay input {

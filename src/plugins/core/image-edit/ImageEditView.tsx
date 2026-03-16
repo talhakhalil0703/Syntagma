@@ -70,6 +70,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
     const [textOverlay, setTextOverlay] = useState<{ x: number, y: number, canvasX: number, canvasY: number } | null>(null);
     const [textInputValue, setTextInputValue] = useState('');
+    const textInputRef = useRef<HTMLInputElement>(null);
     
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [activeHandle, setActiveHandle] = useState<number | null>(null); // -1 for move, 0+ for handles
@@ -85,8 +86,11 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
 
     const centerImage = useCallback((img: HTMLImageElement) => {
         if (!containerRef.current) return;
-        const { width, height } = containerRef.current.getBoundingClientRect();
-        const s = Math.min((width - 40) / img.width, (height - 40) / img.height, 1);
+        const rect = containerRef.current.getBoundingClientRect();
+        const width = rect.width || 800; // Fallback to avoid NaN
+        const height = rect.height || 600;
+        
+        const s = Math.max(0.1, Math.min((width - 40) / (img.width || 1), (height - 40) / (img.height || 1), 1));
         setScale(s);
         setOffset({
             x: (width - img.width * s) / 2,
@@ -134,6 +138,9 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     const handleConfirmCrop = useCallback(() => {
         if (!cropSelection || !canvasRef.current || !image) return;
 
+        // Ensure we don't blur or crash during crop
+        if (textOverlay) handleTextSubmit();
+
         const sx = cropSelection.w < 0 ? cropSelection.x + cropSelection.w : cropSelection.x;
         const sy = cropSelection.h < 0 ? cropSelection.y + cropSelection.h : cropSelection.y;
         const sw = Math.abs(cropSelection.w);
@@ -170,22 +177,35 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     useEffect(() => {
         if (fileId.startsWith('image-edit-empty-')) {
             const canvas = document.createElement('canvas');
-            canvas.width = 500;
-            canvas.height = 500;
+            const w = 800;
+            const h = 600;
+            canvas.width = w;
+            canvas.height = h;
             const ctx = canvas.getContext('2d')!;
             ctx.fillStyle = isDark ? '#1a1a1a' : '#ffffff';
-            ctx.fillRect(0, 0, 500, 500);
+            ctx.fillRect(0, 0, w, h);
             
             const img = new Image();
             img.onload = () => {
                 setImage(img);
-                setCanvasSize({ width: 500, height: 500 });
-                centerImage(img);
+                setCanvasSize({ width: w, height: h });
+                setTimeout(() => centerImage(img), 0); // Defer to ensure container is rendered
             };
             img.src = canvas.toDataURL();
-            return;
         }
+    }, [fileId]); // Only run when fileId changes
 
+    useEffect(() => {
+        if (textOverlay && textInputRef.current) {
+            const input = textInputRef.current;
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 50);
+        }
+    }, [textOverlay]);
+
+    useEffect(() => {
         const handlePaste = async (e: ClipboardEvent) => {
             const items = e.clipboardData?.items;
             if (!items) return;
@@ -495,7 +515,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                         ctx.fill();
                         ctx.stroke();
                     });
-                } else if (el.points) {
+                } else if (el.points && el.points.length > 0) {
                     ctx.beginPath();
                     ctx.moveTo(el.points[0].x, el.points[0].y);
                     el.points.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
@@ -506,6 +526,34 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                         ctx.fillStyle = el.type === 'step' ? '#fff' : '#00aaff';
                         ctx.beginPath();
                         ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    });
+                } else {
+                    // Step, Text, and other point-based elements
+                    const handles = [];
+                    if (el.type === 'text') {
+                        const metrics = ctx.measureText(el.text || '');
+                        const h = el.fontSize || 14;
+                        handles.push({ x: el.x, y: el.y });
+                        handles.push({ x: el.x + metrics.width, y: el.y });
+                        handles.push({ x: el.x, y: el.y + h });
+                        handles.push({ x: el.x + metrics.width, y: el.y + h });
+                    } else if (el.type === 'step') {
+                        const r = (el.fontSize || 14) * (12 / 14);
+                        handles.push({ x: el.x - r, y: el.y - r });
+                        handles.push({ x: el.x + r, y: el.y - r });
+                        handles.push({ x: el.x - r, y: el.y + r });
+                        handles.push({ x: el.x + r, y: el.y + r });
+                    } else {
+                        handles.push({ x: el.x, y: el.y });
+                    }
+
+                    ctx.setLineDash([]);
+                    handles.forEach(h => {
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath();
+                        ctx.arc(h.x, h.y, 4, 0, Math.PI * 2);
                         ctx.fill();
                         ctx.stroke();
                     });
@@ -534,9 +582,10 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
 
     const getMousePos = useCallback((e: React.MouseEvent) => {
         const rect = canvasRef.current!.getBoundingClientRect();
+        const currentScale = scale || 1;
         return {
-            x: (e.clientX - rect.left - offset.x) / scale,
-            y: (e.clientY - rect.top - offset.y) / scale
+            x: (e.clientX - rect.left - offset.x) / currentScale,
+            y: (e.clientY - rect.top - offset.y) / currentScale
         };
     }, [offset, scale]);
 
@@ -603,6 +652,9 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         if (activeTool === 'select' || (activeTool !== 'erase' && activeTool !== 'crop' && activeTool !== 'zoom')) {
             // Find element under cursor
             const foundIdx = [...elements].reverse().findIndex(el => {
+                // Only intercept selection if tool matches or is select tool
+                if (activeTool !== 'select' && el.type !== activeTool) return false;
+
                 if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'image') {
                     const w = el.width || 0;
                     const h = el.height || 0;
@@ -617,7 +669,18 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                     const ry = Math.abs(el.height || 0) / 2;
                     return (dx * dx) / (rx * rx || 1) + (dy * dy) / (ry * ry || 1) <= 1;
                 }
-                return Math.abs(x - el.x) < 15 && Math.abs(y - el.y) < 15;
+                if (el.type === 'text') {
+                    const ctx = canvasRef.current?.getContext('2d');
+                    if (ctx) {
+                        ctx.font = `${el.fontSize || 14}px sans-serif`;
+                        const metrics = ctx.measureText(el.text || '');
+                        const w = metrics.width;
+                        const h = el.fontSize || 14;
+                        // Larger hit box for text
+                        return x >= el.x - 10 && x <= el.x + w + 10 && y >= el.y - 10 && y <= el.y + h + 10;
+                    }
+                }
+                return Math.abs(x - (el.x + (el.width || 0) / 2)) < 30 && Math.abs(y - (el.y + (el.height || 0) / 2)) < 30;
             });
 
             if (foundIdx !== -1) {
@@ -679,11 +742,18 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
             if (textOverlay && textInputValue.trim()) {
                 handleTextSubmit();
             }
-            const rect = canvasRef.current!.getBoundingClientRect();
+            const containerRect = containerRef.current!.getBoundingClientRect();
             const canvasX = x;
             const canvasY = y;
-            const screenX = e.clientX - rect.left;
-            const screenY = e.clientY - rect.top;
+            const screenX = e.clientX - containerRect.left;
+            const screenY = e.clientY - containerRect.top;
+            
+            if (isNaN(screenX) || isNaN(screenY)) {
+                console.error("NaN coordinates detected", { e, containerRect });
+                return;
+            }
+            
+            console.log("Activating Text Tool at", { screenX, screenY, canvasX, canvasY });
             
             setTextOverlay({ 
                 x: screenX, 
@@ -1113,21 +1183,24 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 >
                     <form onSubmit={handleTextSubmit}>
                         <input 
+                            ref={textInputRef}
                             autoFocus 
                             value={textInputValue}
                             onChange={e => setTextInputValue(e.target.value)}
-                            onBlur={() => handleTextSubmit()}
                             onKeyDown={e => {
+                                e.stopPropagation();
+                                if (e.key === 'Enter') {
+                                    handleTextSubmit();
+                                }
                                 if (e.key === 'Escape') {
                                     setTextOverlay(null);
                                     setTextInputValue('');
                                 }
-                                e.stopPropagation();
                             }}
                             placeholder="Type..."
                             style={{ 
-                                fontSize: (settings.fontSize * scale) + 'px', 
-                                color: settings.color,
+                                fontSize: Math.max(8, (settings.fontSize || 14) * (scale || 1)) + 'px', 
+                                color: settings.color || '#ff0000',
                                 border: 'none',
                                 background: 'transparent',
                                 outline: 'none'

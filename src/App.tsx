@@ -44,6 +44,7 @@ import PdfExportPlugin from "./plugins/core/export-pdf/PdfExportPlugin";
 import BrowserPlugin from "./plugins/core/browser/BrowserPlugin";
 import ExcalidrawPlugin from "./plugins/core/excalidraw/ExcalidrawPlugin";
 import MermaidPlugin from "./plugins/core/mermaid/MermaidPlugin";
+import ImageEditPlugin from "./plugins/core/image-edit/ImageEditPlugin";
 import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
 import { useVaultIndexStore } from "./store/vaultIndexStore";
 import "./styles/layout.css";
@@ -148,10 +149,19 @@ function App() {
     }),
   );
 
-  // Initialize Core Plugins on Mount
-  useEffect(() => {
-    // Bootstrap Local Configs
-    initWorkspace();
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+                e.preventDefault();
+                useSettingsStore.getState().openCommandPalette(false);
+            }
+        };
+        window.addEventListener('keydown', handleGlobalKeyDown);
+
+        // Bootstrap Local Configs
+        initWorkspace();
     loadSettings();
 
     // Register Native Commands
@@ -304,6 +314,20 @@ function App() {
       version: "1.0.0",
       description: "Provides native rendering for mermaid diagrams in code blocks.",
       author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(ImageEditPlugin, {
+      id: "core-image-edit",
+      name: "Image Editor",
+      version: "1.0.0",
+      description: "Provides a ShareX-like image editor for annotating and editing images.",
+      author: "Syntagma Core"
+    });
+
+    useSettingsStore.getState().registerCommand({
+      id: "command-palette",
+      name: "Open Command Palette",
+      callback: () => useSettingsStore.getState().openCommandPalette(false)
     });
 
     return () => {
