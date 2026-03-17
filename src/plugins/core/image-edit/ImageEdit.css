@@ -90,6 +90,16 @@
     pointer-events: none;
 }
 
+.toolbar-btn-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.toolbar-btn-wrapper:hover .tooltip {
+    display: block;
+}
+
 .toolbar-btn i {
     font-size: 18px;
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
     MousePointer2, Square, Circle, Pencil, Minus, ArrowUpRight, 
     Type, Search, Hash, Eraser, Droplets, Grid3X3, 
-    Save, Download, Clipboard, Crop
+    Save, Download, Copy, Crop, Box
 } from 'lucide-react';
 import { FileSystemAPI } from '../../../utils/fs';
 import { useThemeStore } from '../../../store/themeStore';
@@ -72,7 +72,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     const [textInputValue, setTextInputValue] = useState('');
     const textInputRef = useRef<HTMLInputElement>(null);
     
-    const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+    const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
+    const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
     const [activeHandle, setActiveHandle] = useState<number | null>(null); // -1 for move, 0+ for handles
     const [history, setHistory] = useState<DrawingElement[][]>([]);
     const [redoStack, setRedoStack] = useState<DrawingElement[][]>([]);
@@ -105,17 +106,17 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     }, [elements]);
 
     const updateSelectedProperty = useCallback((property: keyof DrawingElement, value: any) => {
-        if (selectedElementId) {
+        if (selectedElementIds.length > 0) {
             setHistory(prev => [...prev, elements]);
             setElements(prev => prev.map(el => {
-                if (el.id === selectedElementId) {
+                if (selectedElementIds.includes(el.id)) {
                     return { ...el, [property]: value };
                 }
                 return el;
             }));
             setRedoStack([]);
         }
-    }, [selectedElementId, elements]);
+    }, [selectedElementIds, elements]);
 
     const handleUndo = useCallback(() => {
         if (history.length === 0) return;
@@ -123,17 +124,38 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         setRedoStack(prev => [...prev, elements]);
         setHistory(prev => prev.slice(0, -1));
         setElements(previous);
-        setSelectedElementId(null);
+        setSelectedElementIds([]);
     }, [history, elements]);
 
     const handleRedo = useCallback(() => {
         if (redoStack.length === 0) return;
         const next = redoStack[redoStack.length - 1];
         setHistory(prev => [...prev, elements]);
-        setRedoStack(prev => prev.slice(0, -1));
+        setHistory(prev => prev.slice(0, -1));
         setElements(next);
-        setSelectedElementId(null);
+        setSelectedElementIds([]);
     }, [redoStack, elements]);
+
+    const handleTextSubmit = useCallback((e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (textOverlay && textInputValue.trim()) {
+            const newEl: DrawingElement = {
+                id: Date.now().toString(),
+                type: 'text',
+                x: textOverlay.canvasX,
+                y: textOverlay.canvasY,
+                text: textInputValue,
+                color: settings.color,
+                fillColor: 'transparent',
+                strokeWidth: 1,
+                fontSize: settings.fontSize
+            };
+            saveToHistory([...elements, newEl]);
+            setSelectedElementIds([newEl.id]);
+        }
+        setTextOverlay(null);
+        setTextInputValue('');
+    }, [textOverlay, textInputValue, elements, settings, saveToHistory]);
 
     const handleConfirmCrop = useCallback(() => {
         if (!cropSelection || !canvasRef.current || !image) return;
@@ -206,6 +228,12 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
     }, [textOverlay]);
 
     useEffect(() => {
+        if (activeTool !== 'text' && textOverlay) {
+            handleTextSubmit();
+        }
+    }, [activeTool, textOverlay, handleTextSubmit]);
+
+    useEffect(() => {
         const handlePaste = async (e: ClipboardEvent) => {
             const items = e.clipboardData?.items;
             if (!items) return;
@@ -228,7 +256,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                             strokeWidth: 0
                         };
                         saveToHistory([...elements, newEl]);
-                        setSelectedElementId(newEl.id);
+                        setSelectedElementIds([newEl.id]);
                     };
                     img.src = url;
                 }
@@ -373,7 +401,10 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 ctx.font = `${el.fontSize}px sans-serif`;
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'top';
-                ctx.fillText(el.text || '', el.x, el.y);
+                const lines = (el.text || '').split('\n');
+                lines.forEach((line, i) => {
+                    ctx.fillText(line, el.x, el.y + i * (el.fontSize || 14) * 1.2);
+                });
                 break;
             case 'step':
                 const baseRadius = 12;
@@ -440,8 +471,12 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 ctx.rect(el.x, el.y, el.width || 0, el.height || 0);
                 ctx.clip();
                 if (el.type === 'blur') {
+                    const w = Math.abs(el.width || 0);
+                    const h = Math.abs(el.height || 0);
+                    const x = el.width! < 0 ? el.x + el.width! : el.x;
+                    const y = el.height! < 0 ? el.y + el.height! : el.y;
                     ctx.filter = 'blur(5px)';
-                    if (image) ctx.drawImage(image, 0, 0);
+                    ctx.drawImage(ctx.canvas, x * scale + offset.x, y * scale + offset.y, w * scale, h * scale, x, y, w, h);
                 } else {
                     const pSize = 8;
                     const w = Math.abs(el.width || 0);
@@ -449,16 +484,20 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                     const x = el.width! < 0 ? el.x + el.width! : el.x;
                     const y = el.height! < 0 ? el.y + el.height! : el.y;
                     
-                    if (image) {
-                        const offCanvas = document.createElement('canvas');
-                        offCanvas.width = w / pSize;
-                        offCanvas.height = h / pSize;
-                        const offCtx = offCanvas.getContext('2d');
-                        if (offCtx) {
-                            offCtx.imageSmoothingEnabled = false;
-                            offCtx.drawImage(image, x, y, w, h, 0, 0, w / pSize, h / pSize);
-                            ctx.imageSmoothingEnabled = false;
-                            ctx.drawImage(offCanvas, 0, 0, w / pSize, h / pSize, x, y, w, h);
+                    if (image && w > 0 && h > 0) {
+                        try {
+                            const offCanvas = document.createElement('canvas');
+                            offCanvas.width = Math.max(1, w / pSize);
+                            offCanvas.height = Math.max(1, h / pSize);
+                            const offCtx = offCanvas.getContext('2d');
+                            if (offCtx) {
+                                offCtx.imageSmoothingEnabled = false;
+                                offCtx.drawImage(ctx.canvas, x * scale + offset.x, y * scale + offset.y, w * scale, h * scale, 0, 0, offCanvas.width, offCanvas.height);
+                                ctx.imageSmoothingEnabled = false;
+                                ctx.drawImage(offCanvas, 0, 0, offCanvas.width, offCanvas.height, x, y, w, h);
+                            }
+                        } catch (e) {
+                            console.error("Pixelate failed", e);
                         }
                     }
                 }
@@ -491,16 +530,18 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         elements.forEach(el => drawElement(ctx, el));
         if (currentElement) drawElement(ctx, currentElement);
 
-        // Draw handles for selected element
-        if (selectedElementId) {
-            const el = elements.find(e => e.id === selectedElementId) || (currentElement?.id === selectedElementId ? currentElement : null);
-            if (el) {
-                ctx.strokeStyle = '#00aaff';
-                ctx.setLineDash([5, 5]);
-                ctx.lineWidth = 1;
-                
-                if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'circle' || el.type === 'image') {
-                    ctx.strokeRect(el.x, el.y, el.width || 0, el.height || 0);
+        // Draw multi-selection highlights
+        selectedElementIds.forEach(id => {
+            const el = elements.find(e => e.id === id) || (currentElement?.id === id ? currentElement : null);
+            if (!el) return;
+
+            ctx.strokeStyle = '#00aaff';
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            
+            if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'circle' || el.type === 'image') {
+                ctx.strokeRect(el.x, el.y, el.width || 0, el.height || 0);
+                if (selectedElementIds.length === 1) {
                     const handles = [
                         { x: el.x, y: el.y },
                         { x: el.x + (el.width || 0), y: el.y },
@@ -515,50 +556,68 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                         ctx.fill();
                         ctx.stroke();
                     });
-                } else if (el.points && el.points.length > 0) {
-                    ctx.beginPath();
-                    ctx.moveTo(el.points[0].x, el.points[0].y);
-                    el.points.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
-                    ctx.stroke();
-                    
-                    ctx.setLineDash([]);
-                    el.points.forEach(p => {
-                        ctx.fillStyle = el.type === 'step' ? '#fff' : '#00aaff';
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.stroke();
-                    });
-                } else {
-                    // Step, Text, and other point-based elements
-                    const handles = [];
-                    if (el.type === 'text') {
-                        const metrics = ctx.measureText(el.text || '');
-                        const h = el.fontSize || 14;
-                        handles.push({ x: el.x, y: el.y });
-                        handles.push({ x: el.x + metrics.width, y: el.y });
-                        handles.push({ x: el.x, y: el.y + h });
-                        handles.push({ x: el.x + metrics.width, y: el.y + h });
-                    } else if (el.type === 'step') {
-                        const r = (el.fontSize || 14) * (12 / 14);
-                        handles.push({ x: el.x - r, y: el.y - r });
-                        handles.push({ x: el.x + r, y: el.y - r });
-                        handles.push({ x: el.x - r, y: el.y + r });
-                        handles.push({ x: el.x + r, y: el.y + r });
-                    } else {
-                        handles.push({ x: el.x, y: el.y });
-                    }
-
+                }
+            } else if (el.type === 'text') {
+                 ctx.font = `${el.fontSize || 14}px sans-serif`;
+                const lines = (el.text || '').split('\n');
+                let maxW = 0;
+                lines.forEach(l => {
+                    const w = ctx.measureText(l).width;
+                    if (w > maxW) maxW = w;
+                });
+                const th = lines.length * (el.fontSize || 14) * 1.2;
+                ctx.strokeRect(el.x, el.y, maxW, th);
+                if (selectedElementIds.length === 1) {
+                    const handles = [
+                        { x: el.x, y: el.y },
+                        { x: el.x + maxW, y: el.y },
+                        { x: el.x, y: el.y + th },
+                        { x: el.x + maxW, y: el.y + th }
+                    ];
                     ctx.setLineDash([]);
                     handles.forEach(h => {
                         ctx.fillStyle = '#fff';
                         ctx.beginPath();
-                        ctx.arc(h.x, h.y, 4, 0, Math.PI * 2);
+                        ctx.arc(h.x, h.y, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    });
+                }
+            } else if (el.points && el.points.length > 0) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                el.points.forEach(p => {
+                    minX = Math.min(minX, p.x);
+                    minY = Math.min(minY, p.y);
+                    maxX = Math.max(maxX, p.x);
+                    maxY = Math.max(maxY, p.y);
+                });
+                ctx.strokeRect(minX - 5, minY - 5, (maxX - minX) + 10, (maxY - minY) + 10);
+                if (selectedElementIds.length === 1) {
+                    const handles = [
+                        { x: minX - 5, y: minY - 5 },
+                        { x: maxX + 5, y: minY - 5 },
+                        { x: minX - 5, y: maxY + 5 },
+                        { x: maxX + 5, y: maxY + 5 }
+                    ];
+                    ctx.setLineDash([]);
+                    handles.forEach(h => {
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath();
+                        ctx.arc(h.x, h.y, 5, 0, Math.PI * 2);
                         ctx.fill();
                         ctx.stroke();
                     });
                 }
             }
+        });
+
+        if (selectionRect) {
+            ctx.strokeStyle = '#00aaff';
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+            ctx.fillStyle = 'rgba(0, 170, 255, 0.1)';
+            ctx.fillRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
         }
 
         if (image) {
@@ -568,7 +627,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
             ctx.strokeRect(canvasOrigin.x, canvasOrigin.y, canvasSize.width, canvasSize.height);
 
             // Resizing corner handle (bottom right)
-            if ((activeTool as string) === 'select' && !selectedElementId) {
+            if ((activeTool as string) === 'select' && selectedElementIds.length === 0) {
                 ctx.fillStyle = '#00aaff';
                 ctx.beginPath();
                 ctx.arc(canvasOrigin.x + canvasSize.width, canvasOrigin.y + canvasSize.height, 6, 0, Math.PI * 2);
@@ -578,7 +637,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         }
 
         ctx.restore();
-    }, [image, scale, offset, elements, currentElement, drawElement, selectedElementId, canvasSize, activeTool, isDark]);
+    }, [image, scale, offset, elements, currentElement, drawElement, selectedElementIds, canvasSize, activeTool, isDark]);
 
     const getMousePos = useCallback((e: React.MouseEvent) => {
         const rect = canvasRef.current!.getBoundingClientRect();
@@ -599,51 +658,106 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         }
         
         const { x, y } = getMousePos(e);
+        const mx = (x - offset.x) / scale;
+        const my = (y - offset.y) / scale;
 
-        // Check for handles first if an element is selected and tool is 'select'
-        if (activeTool === 'select' && selectedElementId) {
-            const el = elements.find(e => e.id === selectedElementId);
-            if (el) {
-                if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'circle' || el.type === 'image') {
-                    const handles = [
-                        { x: el.x, y: el.y },
-                        { x: el.x + (el.width || 0), y: el.y },
-                        { x: el.x, y: el.y + (el.height || 0) },
-                        { x: el.x + (el.width || 0), y: el.y + (el.height || 0) }
-                    ];
-                    const handleIdx = handles.findIndex(h => Math.abs(x - h.x) < 8 && Math.abs(y - h.y) < 8);
+        // Check for handles first if an element is selected and tool is 'select' or matching tool
+        if (selectedElementIds.length > 0) {
+            // Handles only supported for single selection for now
+            if (selectedElementIds.length === 1) {
+                const el = elements.find(e => e.id === selectedElementIds[0]);
+                if (el && (activeTool === 'select' || activeTool === el.type)) {
+                    let handles: { x: number, y: number }[] = [];
+                    if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'circle' || el.type === 'image') {
+                        handles = [
+                            { x: el.x, y: el.y },
+                            { x: el.x + (el.width || 0), y: el.y },
+                            { x: el.x, y: el.y + (el.height || 0) },
+                            { x: el.x + (el.width || 0), y: el.y + (el.height || 0) }
+                        ];
+                    } else if (el.type === 'text') {
+                        const ctx = canvasRef.current?.getContext('2d');
+                        if (ctx) {
+                            ctx.font = `${el.fontSize || 14}px sans-serif`;
+                            const lines = (el.text || '').split('\n');
+                            let maxW = 0;
+                            lines.forEach(l => {
+                                const w = ctx.measureText(l).width;
+                                if (w > maxW) maxW = w;
+                            });
+                            const h = lines.length * (el.fontSize || 14) * 1.2;
+                            handles = [
+                                { x: el.x, y: el.y },
+                                { x: el.x + maxW, y: el.y },
+                                { x: el.x, y: el.y + h },
+                                { x: el.x + maxW, y: el.y + h }
+                            ];
+                        }
+                    } else if (el.type === 'pen' && el.points) {
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        el.points.forEach(p => {
+                            minX = Math.min(minX, p.x);
+                            minY = Math.min(minY, p.y);
+                            maxX = Math.max(maxX, p.x);
+                            maxY = Math.max(maxY, p.y);
+                        });
+                        handles = [
+                            { x: minX, y: minY },
+                            { x: maxX, y: minY },
+                            { x: minX, y: maxY },
+                            { x: maxX, y: maxY }
+                        ];
+                   }
+
+                    const handleIdx = handles.findIndex(h => Math.abs(mx - h.x) < 10 && Math.abs(my - h.y) < 10);
                     if (handleIdx !== -1) {
                         setActiveHandle(handleIdx);
                         setIsDrawing(true);
-                        setLastMousePos({ x, y });
-                        return;
-                    }
-                } else if (el.points) {
-                    const handleIdx = el.points.findIndex(p => Math.abs(x - p.x) < 8 && Math.abs(y - p.y) < 8);
-                    if (handleIdx !== -1) {
-                        setActiveHandle(handleIdx);
-                        setIsDrawing(true);
-                        setLastMousePos({ x, y });
+                        setLastMousePos({ x: mx, y: my });
                         return;
                     }
                 }
-                
-                // Check for move (click inside or near)
+            }
+
+            // Check for move for any of the selected elements
+            for (const id of selectedElementIds) {
+                const el = elements.find(e => e.id === id);
+                if (!el) continue;
+
                 let isInside = false;
                 if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'image') {
                     const w = el.width || 0;
                     const h = el.height || 0;
                     const ex = w < 0 ? el.x + w : el.x;
                     const ey = h < 0 ? el.y + h : el.y;
-                    isInside = x >= ex && x <= ex + Math.abs(w) && y >= ey && y <= ey + Math.abs(h);
-                } else {
-                    isInside = Math.abs(x - el.x) < 20 && Math.abs(y - el.y) < 20;
+                    isInside = mx >= ex && mx <= ex + Math.abs(w) && my >= ey && my <= ey + Math.abs(h);
+                } else if (el.type === 'circle') {
+                    const dx = mx - (el.x + (el.width || 0) / 2);
+                    const dy = my - (el.y + (el.height || 0) / 2);
+                    const rx = Math.abs(el.width || 0) / 2;
+                    const ry = Math.abs(el.height || 0) / 2;
+                    isInside = (dx * dx) / (rx * rx || 1) + (dy * dy) / (ry * ry || 1) <= 1;
+                } else if (el.type === 'text') {
+                    const ctx = canvasRef.current?.getContext('2d');
+                    if (ctx) {
+                        ctx.font = `${el.fontSize || 14}px sans-serif`;
+                        const lines = (el.text || '').split('\n');
+                        let maxW = 0;
+                        lines.forEach(l => {
+                            const w = ctx.measureText(l).width;
+                            if (w > maxW) maxW = w;
+                        });
+                        const h = lines.length * (el.fontSize || 14) * 1.2;
+                        isInside = mx >= el.x && mx <= el.x + maxW && my >= el.y && my <= el.y + h;
+                    }
+                } else if (el.type === 'pen' && el.points) {
+                    isInside = el.points.some(p => Math.abs(p.x - mx) < 10 && Math.abs(p.y - my) < 10);
                 }
 
                 if (isInside) {
                     setActiveHandle(-1); // Move
                     setIsDrawing(true);
-                    setLastMousePos({ x, y });
+                    setLastMousePos({ x: mx, y: my });
                     return;
                 }
             }
@@ -652,6 +766,9 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         if (activeTool === 'select' || (activeTool !== 'erase' && activeTool !== 'crop' && activeTool !== 'zoom')) {
             // Find element under cursor
             const foundIdx = [...elements].reverse().findIndex(el => {
+                // Restrict pen selection to 'select' tool
+                if (el.type === 'pen' && activeTool === 'pen') return false;
+
                 // Only intercept selection if tool matches or is select tool
                 if (activeTool !== 'select' && el.type !== activeTool) return false;
 
@@ -660,11 +777,11 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                     const h = el.height || 0;
                     const ex = w < 0 ? el.x + w : el.x;
                     const ey = h < 0 ? el.y + h : el.y;
-                    return x >= ex && x <= ex + Math.abs(w) && y >= ey && y <= ey + Math.abs(h);
+                    return mx >= ex && mx <= ex + Math.abs(w) && my >= ey && my <= ey + Math.abs(h);
                 }
                 if (el.type === 'circle') {
-                    const dx = x - (el.x + (el.width || 0) / 2);
-                    const dy = y - (el.y + (el.height || 0) / 2);
+                    const dx = mx - (el.x + (el.width || 0) / 2);
+                    const dy = my - (el.y + (el.height || 0) / 2);
                     const rx = Math.abs(el.width || 0) / 2;
                     const ry = Math.abs(el.height || 0) / 2;
                     return (dx * dx) / (rx * rx || 1) + (dy * dy) / (ry * ry || 1) <= 1;
@@ -673,50 +790,60 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                     const ctx = canvasRef.current?.getContext('2d');
                     if (ctx) {
                         ctx.font = `${el.fontSize || 14}px sans-serif`;
-                        const metrics = ctx.measureText(el.text || '');
-                        const w = metrics.width;
-                        const h = el.fontSize || 14;
-                        // Larger hit box for text
-                        return x >= el.x - 10 && x <= el.x + w + 10 && y >= el.y - 10 && y <= el.y + h + 10;
+                        const lines = (el.text || '').split('\n');
+                        let maxW = 0;
+                        lines.forEach(l => {
+                            const w = ctx.measureText(l).width;
+                            if (w > maxW) maxW = w;
+                        });
+                        const h = lines.length * (el.fontSize || 14) * 1.2;
+                        return mx >= el.x && mx <= el.x + maxW && my >= el.y && my <= el.y + h;
                     }
                 }
-                return Math.abs(x - (el.x + (el.width || 0) / 2)) < 30 && Math.abs(y - (el.y + (el.height || 0) / 2)) < 30;
+                if (el.type === 'pen' && el.points) {
+                    return el.points.some(p => Math.abs(p.x - mx) < 10 && Math.abs(p.y - my) < 10);
+                }
+                return false;
             });
 
             if (foundIdx !== -1) {
                 const actualIdx = elements.length - 1 - foundIdx;
-                const el = elements[actualIdx];
-                setSelectedElementId(el.id);
+                const clickedId = elements[actualIdx].id;
+                
+                // If already selected, don't clear other selections
+                if (selectedElementIds.includes(clickedId)) {
+                    setActiveHandle(-1);
+                    setIsDrawing(true);
+                    setLastMousePos({ x: mx, y: my });
+                    return;
+                }
+                
+                setSelectedElementIds([clickedId]);
                 setActiveHandle(-1);
                 setIsDrawing(true);
-                setLastMousePos({ x, y });
-                return; // Selection handled, don't start drawing new shape
-            } else if (activeTool === 'select') {
-                setSelectedElementId(null);
-                // Check for canvas resize handle (bottom-right)
-                if (Math.abs(x - canvasSize.width) < 10 && Math.abs(y - canvasSize.height) < 10) {
-                    setIsDrawing(true);
-                    setActiveHandle(999); // Special handle for canvas resize
-                    setLastMousePos({ x, y });
-                }
+                setLastMousePos({ x: mx, y: my });
                 return;
+            } else if (activeTool === 'select') {
+                setSelectedElementIds([]);
+                setSelectionRect({ x: mx, y: my, w: 0, h: 0 });
+                setIsDrawing(true);
+                setLastMousePos({ x: mx, y: my });
+                return;
+            } else {
+                setSelectedElementIds([]);
             }
         }
 
         if (activeTool === 'erase') {
-            const newElements = elements.filter(el => {
-                if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate') {
-                    const w = el.width || 0;
-                    const h = el.height || 0;
-                    const ex = w < 0 ? el.x + w : el.x;
-                    const ey = h < 0 ? el.y + h : el.y;
-                    return !(x >= ex && x <= ex + Math.abs(w) && y >= ey && y <= ey + Math.abs(h));
-                }
-                return !(Math.abs(x - el.x) < 20 && Math.abs(y - el.y) < 20);
+            const hitIdx = [...elements].reverse().findIndex(el => {
+                if (el.points) return el.points.some(p => Math.abs(p.x - x) < 20 && Math.abs(p.y - y) < 20);
+                return Math.abs(el.x - x) < 20 && Math.abs(el.y - y) < 20;
             });
-            if (newElements.length !== elements.length) {
-                saveToHistory(newElements);
+            if (hitIdx !== -1) {
+                const actualIdx = elements.length - 1 - hitIdx;
+                saveToHistory(elements.filter((_, i) => i !== actualIdx));
             }
+            setIsDrawing(true); // Allow dragging to erase more
             return;
         }
 
@@ -806,120 +933,165 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         if (!isDrawing) return;
         const { x, y } = getMousePos(e);
         
-        if (selectedElementId) {
-            const elIdx = elements.findIndex(e => e.id === selectedElementId);
-            if (elIdx === -1) {
-                // Moving current element or transforming it
-                if (activeHandle === -1) {
-                    const dx = x - lastMousePos.x;
-                    const dy = y - lastMousePos.y;
-                    setCurrentElement(prev => {
-                        if (!prev) return null;
-                        const updated = { ...prev, x: prev.x + dx, y: prev.y + dy };
+        if (selectedElementIds.length > 0) {
+            if (activeHandle === -1) {
+                // Moving selected elements
+                const dx = x - lastMousePos.x;
+                const dy = y - lastMousePos.y;
+                setElements(prev => prev.map(el => {
+                    if (selectedElementIds.includes(el.id)) {
+                        const updated = { ...el, x: el.x + dx, y: el.y + dy };
                         if (updated.points) updated.points = updated.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
                         return updated;
-                    });
-                } else if (currentElement) {
-                    // Transforming existing element
-                    setCurrentElement(prev => {
-                        if (!prev) return null;
-                        const updated = { ...prev };
-                        if (prev.type === 'rect' || prev.type === 'blur' || prev.type === 'pixelate' || prev.type === 'circle' || prev.type === 'image') {
-                            if (activeHandle === 0) { updated.x = x; updated.width = (prev.width || 0) + (prev.x - x); updated.y = y; updated.height = (prev.height || 0) + (prev.y - y); }
-                            else if (activeHandle === 1) { updated.width = x - prev.x; updated.y = y; updated.height = (prev.height || 0) + (prev.y - y); }
-                            else if (activeHandle === 2) { updated.x = x; updated.width = (prev.width || 0) + (prev.x - x); updated.height = y - prev.y; }
-                            else if (activeHandle === 3) { updated.width = x - prev.x; updated.height = y - prev.y; }
-                        } else if (updated.points && activeHandle! < updated.points.length) {
-                            updated.points = [...updated.points];
-                            updated.points[activeHandle!] = { x, y };
+                    }
+                    return el;
+                }));
+            } else if (selectedElementIds.length === 1 && activeHandle !== null) {
+                // Resizing single element
+                const id = selectedElementIds[0];
+                setElements(prev => prev.map(el => {
+                    if (el.id !== id) return el;
+                    const updated = { ...el };
+                    if (el.type === 'rect' || el.type === 'blur' || el.type === 'pixelate' || el.type === 'circle' || el.type === 'image') {
+                        const curW = el.width || 0;
+                        const curH = el.height || 0;
+                        if (activeHandle === 0) { // Top-left
+                            updated.x = x; updated.width = curW + (el.x - x); updated.y = y; updated.height = curH + (el.y - y);
+                        } else if (activeHandle === 1) { // Top-right
+                            updated.width = x - el.x; updated.y = y; updated.height = curH + (el.y - y);
+                        } else if (activeHandle === 2) { // Bottom-left
+                            updated.x = x; updated.width = curW + (el.x - x); updated.height = y - el.y;
+                        } else if (activeHandle === 3) { // Bottom-right
+                            updated.width = x - el.x; updated.height = y - el.y;
                         }
-                        return updated;
-                    });
-                }
-                setLastMousePos({ x, y });
-                return;
-            } else if (activeHandle !== null) {
-                // Start transforming an element that's in the elements array
-                const el = elements[elIdx];
-                setCurrentElement(el);
-                setElements(prev => prev.filter(e => e.id !== selectedElementId));
-                setLastMousePos({ x, y });
-                return;
-            }
-        }
+                    } else if (el.type === 'text') {
+                        const ctx = canvasRef.current?.getContext('2d');
+                        if (ctx) {
+                            ctx.font = `${el.fontSize || 14}px sans-serif`;
+                            const lines = (el.text || '').split('\n');
+                            let maxW = 0;
+                            lines.forEach(l => {
+                                const w = ctx.measureText(l).width;
+                                if (w > maxW) maxW = w;
+                            });
+                            const totalH = lines.length * (el.fontSize || 14) * 1.2;
+                            let newFontSize = el.fontSize || 14;
+                            let newX = el.x;
+                            let newY = el.y;
 
-        if (activeTool === 'select' && activeHandle === -1 && currentElement) {
-            const dx = x - lastMousePos.x;
-            const dy = y - lastMousePos.y;
-            setCurrentElement(prev => {
-                if (!prev) return null;
-                const updated = { ...prev, x: prev.x + dx, y: prev.y + dy };
-                if (updated.points) updated.points = updated.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                return updated;
-            });
+                            if (activeHandle === 0) { // Top-left
+                                const anchorX = el.x + maxW; const anchorY = el.y + totalH;
+                                const scale_ = Math.max(0.1, Math.max((anchorX - x) / maxW, (anchorY - y) / totalH));
+                                newFontSize = Math.max(8, Math.round((el.fontSize || 14) * scale_));
+                                ctx.font = `${newFontSize}px sans-serif`;
+                                let newMaxW = 0; lines.forEach(l => { const w = ctx.measureText(l).width; if (w > newMaxW) newMaxW = w; });
+                                newX = anchorX - newMaxW; newY = anchorY - (lines.length * newFontSize * 1.2);
+                            } else if (activeHandle === 1) { // Top-right
+                                const anchorY = el.y + totalH;
+                                const scale_ = Math.max(0.1, Math.max((x - el.x) / maxW, (anchorY - y) / totalH));
+                                newFontSize = Math.max(8, Math.round((el.fontSize || 14) * scale_));
+                                newY = anchorY - (lines.length * newFontSize * 1.2);
+                            } else if (activeHandle === 2) { // Bottom-left
+                                const anchorX = el.x + maxW;
+                                const scale_ = Math.max(0.1, Math.max((anchorX - x) / maxW, (y - el.y) / totalH));
+                                newFontSize = Math.max(8, Math.round((el.fontSize || 14) * scale_));
+                                ctx.font = `${newFontSize}px sans-serif`;
+                                let newMaxW = 0; lines.forEach(l => { const w = ctx.measureText(l).width; if (w > newMaxW) newMaxW = w; });
+                                newX = anchorX - newMaxW;
+                            } else if (activeHandle === 3) { // Bottom-right
+                                const scale_ = Math.max(0.1, Math.max((x - el.x) / maxW, (y - el.y) / totalH));
+                                newFontSize = Math.max(8, Math.round((el.fontSize || 14) * scale_));
+                            }
+                            updated.fontSize = newFontSize; updated.x = newX; updated.y = newY;
+                        }
+                    } else if (el.type === 'pen' && el.points) {
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        el.points.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+                        const w = maxX - minX, h = maxY - minY;
+                        let scaleX = 1, scaleY = 1, originX = minX, originY = minY;
+                        if (activeHandle === 0) { scaleX = (maxX - x) / w; scaleY = (maxY - y) / h; originX = maxX; originY = maxY; }
+                        else if (activeHandle === 1) { scaleX = (x - minX) / w; scaleY = (maxY - y) / h; originX = minX; originY = maxY; }
+                        else if (activeHandle === 2) { scaleX = (maxX - x) / w; scaleY = (y - minY) / h; originX = maxX; originY = minY; }
+                        else if (activeHandle === 3) { scaleX = (x - minX) / w; scaleY = (y - minY) / h; originX = minX; originY = minY; }
+                        if (!isNaN(scaleX) && isFinite(scaleX) && !isNaN(scaleY) && isFinite(scaleY)) {
+                            updated.points = el.points.map(p => ({ x: originX + (p.x - originX) * scaleX, y: originY + (p.y - originY) * scaleY }));
+                        }
+                    }
+                    return updated;
+                }));
+            }
             setLastMousePos({ x, y });
             return;
         }
 
-        if (activeTool === 'crop' && isDrawing) {
-            setCropSelection(prev => prev ? { ...prev, w: x - prev.x, h: y - prev.y } : null);
+        if (selectionRect) {
+            setSelectionRect(prev => prev ? { ...prev, w: x - prev.x, h: y - prev.y } : null);
             return;
         }
 
-        setCurrentElement(prev => {
-            if (!prev) return null;
-            if (prev.type === 'pen') {
-                return { ...prev, points: [...(prev.points || []), { x, y }] };
+        if (activeTool === 'erase') {
+            const hitIdx = [...elements].reverse().findIndex(el => {
+                if (el.points) return el.points.some(p => Math.abs(p.x - x) < 20 && Math.abs(p.y - y) < 20);
+                return Math.abs(el.x - x) < 20 && Math.abs(el.y - y) < 20;
+            });
+            if (hitIdx !== -1) {
+                const actualIdx = elements.length - 1 - hitIdx;
+                setElements(prev => prev.filter((_, i) => i !== actualIdx));
             }
-            if (prev.type === 'line' || prev.type === 'arrow') {
-                const start = prev.points![0];
-                return { ...prev, points: [start, { x, y }, { x: (start.x + x) / 2, y: (start.y + y) / 2 }] };
+            return;
+        }
+
+        if (currentElement) {
+            const updated = { ...currentElement };
+            if (activeTool === 'pen') {
+                updated.points = [...(updated.points || []), { x, y }];
+            } else if (activeTool === 'step') {
+                updated.direction = { x: x - updated.x, y: y - updated.y };
+            } else if (activeTool === 'line' || activeTool === 'arrow') {
+                updated.points = [updated.points![0], { x, y }];
+            } else {
+                updated.width = x - updated.x;
+                updated.height = y - updated.y;
             }
-            if (prev.type === 'step') {
-                return { ...prev, direction: { x: x - prev.x, y: y - prev.y } };
-            }
-            return {
-                ...prev,
-                width: x - prev.x,
-                height: y - prev.y
-            };
-        });
+            setCurrentElement(updated);
+        }
     };
 
     const handleMouseUp = () => {
-        setIsPanning(false);
-        setActiveHandle(null);
-        if (activeTool === 'crop') {
-            setIsDrawing(false);
+        if (isPanning) {
+            setIsPanning(false);
             return;
         }
-        if (!isDrawing || !currentElement) return;
-        setIsDrawing(false);
-        saveToHistory([...elements, currentElement]);
-        setSelectedElementId(currentElement.id);
-        setCurrentElement(null);
-    };
 
-    const handleTextSubmit = useCallback((e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        if (textOverlay && textInputValue.trim()) {
-            const newEl: DrawingElement = {
-                id: Date.now().toString(),
-                type: 'text',
-                x: textOverlay.canvasX,
-                y: textOverlay.canvasY,
-                text: textInputValue,
-                color: settings.color,
-                fillColor: 'transparent',
-                strokeWidth: 1,
-                fontSize: settings.fontSize
-            };
-            saveToHistory([...elements, newEl]);
-            setSelectedElementId(newEl.id);
+        if (!isDrawing) return;
+
+        if (selectionRect) {
+            const sx = selectionRect.w < 0 ? selectionRect.x + selectionRect.w : selectionRect.x;
+            const sy = selectionRect.h < 0 ? selectionRect.y + selectionRect.h : selectionRect.y;
+            const sw = Math.abs(selectionRect.w);
+            const sh = Math.abs(selectionRect.h);
+
+            const foundIds = elements.filter(el => {
+                if (el.points && el.points.length > 0) {
+                    return el.points.every(p => p.x >= sx && p.x <= sx + sw && p.y >= sy && p.y <= sy + sh);
+                }
+                const w = el.width || 0; const h = el.height || 0;
+                const ex = w < 0 ? el.x + w : el.x; const ey = h < 0 ? el.y + h : el.y;
+                return ex >= sx && ex + Math.abs(w) <= sx + sw && ey >= sy && ey + Math.abs(h) <= sy + sh;
+            }).map(el => el.id);
+
+            setSelectedElementIds(foundIds);
+            setSelectionRect(null);
+        } else if (currentElement) {
+            saveToHistory([...elements, currentElement]);
+            setCurrentElement(null);
+        } else if (selectedElementIds.length > 0) {
+            saveToHistory(elements);
         }
-        setTextOverlay(null);
-        setTextInputValue('');
-    }, [textOverlay, textInputValue, elements, settings, saveToHistory]);
+
+        setIsDrawing(false);
+        setActiveHandle(null);
+    };
 
     const handleDoubleClick = (e: React.MouseEvent) => {
         const { x, y } = getMousePos(e);
@@ -942,10 +1114,39 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         }
     };
 
+    const handleContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const { x, y } = getMousePos(e);
+        const mx = x;
+        const my = y;
+
+        const hitIdx = [...elements].reverse().findIndex(el => {
+             const w = el.width || 20;
+             const h = el.height || 20;
+             return mx >= el.x && mx <= el.x + w && my >= el.y && my <= el.y + h;
+        });
+
+        if (hitIdx !== -1) {
+            const actualIdx = elements.length - 1 - hitIdx;
+            const choice = window.prompt("Layering: f(Front), b(Back), F(Forward), B(Backward)");
+            if (!choice) return;
+
+            let newElements = [...elements];
+            const el = newElements.splice(actualIdx, 1)[0];
+
+            if (choice === 'f') newElements.push(el);
+            else if (choice === 'b') newElements.unshift(el);
+            else if (choice === 'F') newElements.splice(Math.min(newElements.length, actualIdx + 1), 0, el);
+            else if (choice === 'B') newElements.splice(Math.max(0, actualIdx - 1), 0, el);
+            
+            saveToHistory(newElements);
+        }
+    };
+
     const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
         const delta = -e.deltaY;
-        const zoomSpeed = 0.001 * scale; // Zoom speed proportional to current scale
+        const zoomSpeed = 0.001 * scale;
         const newScale = Math.max(0.1, Math.min(20, scale + delta * zoomSpeed));
 
         if (containerRef.current) {
@@ -1012,17 +1213,21 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         ctx.drawImage(image, 0, 0);
         elements.forEach(el => drawElement(ctx, el));
         ctx.restore();
-        
-        tempCanvas.toBlob(async (blob) => {
-            if (blob) {
-                try {
-                    const item = new ClipboardItem({ [blob.type]: blob });
-                    await navigator.clipboard.write([item]);
-                } catch (e) {
-                    console.error("Clipboard write failed", e);
-                }
+
+        const blob = await new Promise<Blob | null>(resolve => tempCanvas.toBlob(resolve, 'image/png'));
+        if (blob && typeof ClipboardItem !== 'undefined') {
+            try {
+                const data = [new ClipboardItem({ 'image/png': blob })];
+                await navigator.clipboard.write(data);
+            } catch (e) {
+                console.error("Clipboard write failed, falling back to data URL", e);
+                const dataUrl = tempCanvas.toDataURL('image/png');
+                await navigator.clipboard.writeText(dataUrl);
             }
-        });
+        } else if (blob) {
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            await navigator.clipboard.writeText(dataUrl);
+        }
     };
 
     useEffect(() => {
@@ -1046,21 +1251,9 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 return;
             }
 
-            // Tool shortcuts
             const keyMap: Record<string, Tool> = {
-                'v': 'select',
-                'r': 'rect',
-                'o': 'circle',
-                'p': 'pen',
-                'l': 'line',
-                'a': 'arrow',
-                't': 'text',
-                'z': 'zoom',
-                's': 'step',
-                'e': 'erase',
-                'b': 'blur',
-                'x': 'pixelate',
-                'k': 'crop'
+                'v': 'select', 'r': 'rect', 'o': 'circle', 'p': 'pen', 'l': 'line', 'a': 'arrow',
+                't': 'text', 'z': 'zoom', 's': 'step', 'e': 'erase', 'b': 'blur', 'x': 'pixelate', 'k': 'crop'
             };
             if (keyMap[e.key.toLowerCase()]) {
                 setActiveTool(keyMap[e.key.toLowerCase()]);
@@ -1075,9 +1268,18 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         <div ref={containerRef} className={`image-edit-container ${isDark ? 'dark' : 'light'}`} onWheel={handleWheel}>
             <div className="image-edit-toolbar">
                 <div className="toolbar-section">
-                    <button className="toolbar-btn" onClick={() => saveImage(false)} title="Save"><Save size={18} /></button>
-                    <button className="toolbar-btn" onClick={() => saveImage(true)} title="Save As"><Download size={18} /></button>
-                    <button className="toolbar-btn" onClick={() => copyToClipboard()} title="Copy to Clipboard"><Clipboard size={18} /></button>
+                    <div className="toolbar-btn-wrapper">
+                        <button className="toolbar-btn" onClick={() => saveImage(false)}><Save size={18} /></button>
+                        <span className="tooltip">Save</span>
+                    </div>
+                    <div className="toolbar-btn-wrapper">
+                        <button className="toolbar-btn" onClick={() => saveImage(true)}><Download size={18} /></button>
+                        <span className="tooltip">Download</span>
+                    </div>
+                    <div className="toolbar-btn-wrapper">
+                        <button className="toolbar-btn" onClick={() => copyToClipboard()}><Copy size={18} /></button>
+                        <span className="tooltip">Copy to Clipboard</span>
+                    </div>
                 </div>
                 <div className="toolbar-divider" />
                 <div className="toolbar-section">
@@ -1114,22 +1316,23 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                         }} 
                         title="Fill Color" 
                     />
-                    <button 
-                        className="toolbar-btn" 
-                        onClick={() => {
-                            const newFill = settings.fillColor === 'transparent' ? '#ffffff' : 'transparent';
-                            setSettings({...settings, fillColor: newFill});
-                            updateSelectedProperty('fillColor', newFill);
-                        }} 
-                        title="Toggle Fill"
-                    >
-                        {settings.fillColor === 'transparent' ? 'No Fill' : 'Fill'}
-                    </button>
+                    <div className="toolbar-btn-wrapper">
+                        <button 
+                            className={`toolbar-btn ${settings.fillColor === 'transparent' ? 'active' : ''}`}
+                            onClick={() => {
+                                const newFill = settings.fillColor === 'transparent' ? '#ffffff' : 'transparent';
+                                setSettings({...settings, fillColor: newFill});
+                                updateSelectedProperty('fillColor', newFill);
+                            }} 
+                        >
+                            <Box size={18} strokeDasharray={settings.fillColor === 'transparent' ? "4 4" : "0"} />
+                        </button>
+                        <span className="tooltip">{settings.fillColor === 'transparent' ? 'Fill: Transparent' : 'Fill: Opaque'}</span>
+                    </div>
                     <input 
                         type="number" 
                         value={settings.strokeWidth} 
-                        min="1" 
-                        max="20" 
+                        min="1" max="20" 
                         onChange={e => {
                             const val = parseInt(e.target.value);
                             setSettings({...settings, strokeWidth: val});
@@ -1138,12 +1341,11 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                         title="Stroke Width" 
                         style={{width: '40px'}} 
                     />
-                    {(activeTool === 'text' || activeTool === 'step' || (selectedElementId && elements.find(e => e.id === selectedElementId)?.fontSize)) && (
+                    {(activeTool === 'text' || activeTool === 'step' || (selectedElementIds.length === 1 && elements.find(e => e.id === selectedElementIds[0])?.fontSize)) && (
                         <input 
                             type="number" 
                             value={settings.fontSize} 
-                            min="8" 
-                            max="72" 
+                            min="8" max="72" 
                             onChange={e => {
                                 const val = parseInt(e.target.value);
                                 setSettings({...settings, fontSize: val});
@@ -1164,52 +1366,38 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onDoubleClick={handleDoubleClick}
-                onContextMenu={(e) => e.preventDefault()}
+                onContextMenu={handleContextMenu}
             />
             {cropSelection && activeTool === 'crop' && (
-                <button className="crop-confirm-btn" onClick={handleConfirmCrop}>
-                    Confirm Crop
-                </button>
+                <button className="crop-confirm-btn" onClick={handleConfirmCrop}>Confirm Crop</button>
             )}
             {textOverlay && (
-                <div 
-                    className="text-input-overlay" 
-                    style={{ 
-                        left: textOverlay.x, 
-                        top: textOverlay.y,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                >
+                <div className="text-input-overlay" style={{ left: textOverlay.x, top: textOverlay.y, background: 'transparent', border: 'none' }} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}>
                     <form onSubmit={handleTextSubmit}>
-                        <input 
-                            ref={textInputRef}
+                        <textarea 
+                            ref={textInputRef as any}
                             autoFocus 
                             value={textInputValue}
                             onChange={e => setTextInputValue(e.target.value)}
                             onKeyDown={e => {
                                 e.stopPropagation();
-                                if (e.key === 'Enter') {
-                                    handleTextSubmit();
-                                }
-                                if (e.key === 'Escape') {
-                                    setTextOverlay(null);
-                                    setTextInputValue('');
-                                }
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleTextSubmit(); }
+                                if (e.key === 'Escape') { setTextOverlay(null); setTextInputValue(''); }
                             }}
                             placeholder="Type..."
                             style={{ 
                                 fontSize: Math.max(8, (settings.fontSize || 14) * (scale || 1)) + 'px', 
                                 color: settings.color || '#ff0000',
-                                border: 'none',
-                                background: 'transparent',
-                                outline: 'none'
+                                border: '1px dashed var(--text-accent)',
+                                background: 'rgba(255,255,255,0.1)',
+                                outline: 'none', padding: '4px', minWidth: '100px', resize: 'both', fontFamily: 'sans-serif'
                              }}
                         />
                     </form>
                 </div>
             )}
-            {isSvg && <div className="svg-overlay">SVG View Only</div>}
         </div>
     );
 };
+
+export default ImageEditView;
