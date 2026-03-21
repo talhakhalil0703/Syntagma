@@ -1,73 +1,62 @@
-# React + TypeScript + Vite
+<h1 align="center">Syntagma: Second Brain Editor</h1>
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<p align="center">
+  A powerful, customizable, and open-source personal knowledge management tool built for speed and flexibility.
+</p>
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**Syntagma** is a beautifully designed, dark-mode native Second Brain Editor that empowers you to capture, connect, and explore your thoughts seamlessly. It's built with modern web technologies to be fast, responsive, and completely open-source.
 
-## React Compiler
+**Feel free to fork, modify, and make it your own!** Syntagma is completely free and open-source.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## ✨ Features Highlight
 
-## Expanding the ESLint configuration
+Experience the power of Syntagma with these integrated features:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 📝 Rich Text Editing & Markdown
+Write seamlessly with full Markdown support, live preview, formatting shortcuts, lists, code blocks, and more—all available natively.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+![Text Editing](./docs/assets/text_editing.webp)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 📅 Daily Notes
+Capture your thoughts on the fly. The built-in calendar lets you instantly jump to today's note to manage your daily tasks, logs, and journaling.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+![Daily Notes](./docs/assets/daily_notes.webp)
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 🎨 Integrated Image Editor
+Paste an image straight into your notes and edit it without leaving the app! You can quickly draw, annotate, and transform images right within your workspace.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+![Image Editor](./docs/assets/image_editor.webp)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 📋 Note Templates
+Never start from a blank page again. Use customizable templates to instantly scaffold new notes for meetings, daily reviews, or project planning.
+
+![Note Templates](./docs/assets/note_templates.webp)
+
+### 🔍 Fast Fuzzy Search
+Find anything in your vault instantly. The lightning-fast fuzzy search feature ensures you can jump directly to any document without friction.
+
+![Fuzzy Search](./docs/assets/fuzzy_search.webp)
+
+### 💾 Git Backup & Version Control
+Never lose your data. With built-in Git integration, you can automatically backup your vault, track file history, and manage your versions directly from the UI.
+
+![Git Backup](./docs/assets/git_backup.webp)
+
+### 🧩 Plugin System (Excalidraw Integration)
+Expand your editor's functionality. The deeply integrated plugin system allows tools like Excalidraw to run natively in your workspace, enabling rich diagrams, flowcharts, and visual notes.
+
+![Excalidraw Plugin](./docs/assets/excalidraw_plugin.webp)
+
+## 🚀 Getting Started
+
+To get started with Syntagma locally:
+
+1. Clone the repository: `git clone https://github.com/talhakhalil0703/Syntagma.git`
+2. Install dependencies: `npm install`
+3. Start the dev server: `npm run dev`
+
+---
+
+*Syntagma is constantly evolving. Fork it, build plugins, and help shape the ultimate Second Brain Editor!*
