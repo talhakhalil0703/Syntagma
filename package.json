@@ -23,14 +23,18 @@
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ]
     },
     "win": {
       "target": [
-        "nsis",
-        "zip"
+        "msi",
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
       ]
     },
     "files": [

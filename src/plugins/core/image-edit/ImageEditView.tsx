@@ -686,8 +686,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         }
         
         const { x, y } = getMousePos(e);
-        const mx = (x - offset.x) / scale;
-        const my = (y - offset.y) / scale;
+        const mx = x;
+        const my = y;
 
         if (selectedElementIds.length > 0) {
             const firstEl = elements.find(e => e.id === selectedElementIds[0]);
@@ -1264,6 +1264,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
             const actualIdx = elements.length - 1 - hitIdx;
             const clickedId = elements[actualIdx].id;
             const containerRect = containerRef.current!.getBoundingClientRect();
+            // Auto-select the right-clicked element
+            setSelectedElementIds(prev => prev.includes(clickedId) ? prev : [clickedId]);
             setContextMenu({ 
                 x: e.clientX - containerRect.left, 
                 y: e.clientY - containerRect.top, 
@@ -1361,6 +1363,12 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         }
     };
 
+    const handleDeleteSelected = useCallback(() => {
+        if (selectedElementIds.length === 0) return;
+        saveToHistory(elements.filter(el => !selectedElementIds.includes(el.id)));
+        setSelectedElementIds([]);
+    }, [selectedElementIds, elements, saveToHistory]);
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1382,6 +1390,11 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                 return;
             }
 
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                handleDeleteSelected();
+                return;
+            }
+
             const keyMap: Record<string, Tool> = {
                 'v': 'select', 'r': 'rect', 'o': 'circle', 'p': 'pen', 'l': 'line', 'a': 'arrow',
                 't': 'text', 'z': 'zoom', 's': 'step', 'e': 'erase', 'b': 'blur', 'x': 'pixelate', 'k': 'crop'
@@ -1393,7 +1406,7 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleUndo, handleRedo, image, elements, saveImage, copyToClipboard]);
+    }, [handleUndo, handleRedo, image, elements, saveImage, copyToClipboard, handleDeleteSelected]);
 
     return (
         <div ref={containerRef} className={`image-edit-container ${isDark ? 'dark' : 'light'}`} onWheel={handleWheel}>
@@ -1546,6 +1559,8 @@ export const ImageEditView: React.FC<ImageEditViewProps> = ({ fileId }) => {
                     <div className="context-menu-item" onClick={() => handleLayerAction('forward', contextMenu.elementId)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }} onMouseEnter={e => e.currentTarget.style.background='var(--bg-hover)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>Bring Forward</div>
                     <div className="context-menu-item" onClick={() => handleLayerAction('backward', contextMenu.elementId)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }} onMouseEnter={e => e.currentTarget.style.background='var(--bg-hover)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>Send Backward</div>
                     <div className="context-menu-item" onClick={() => handleLayerAction('back', contextMenu.elementId)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }} onMouseEnter={e => e.currentTarget.style.background='var(--bg-hover)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>Send to Back</div>
+                    <div style={{ borderTop: '1px solid var(--bg-border)', margin: '4px 0' }} />
+                    <div className="context-menu-item" onClick={() => { saveToHistory(elements.filter(el => el.id !== contextMenu.elementId)); setSelectedElementIds([]); setContextMenu(null); }} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#e05252' }} onMouseEnter={e => e.currentTarget.style.background='var(--bg-hover)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>Remove</div>
                 </div>
             )}
         </div>

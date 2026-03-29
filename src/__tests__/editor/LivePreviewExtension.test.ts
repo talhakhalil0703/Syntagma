@@ -3,19 +3,13 @@
  */
 import { describe, it, expect } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { buildDecorations } from "../../components/editor/LivePreviewExtension";
 
 // Helper to extract decorations from an EditorState using buildDecorations directly
 function getDecorations(state: EditorState) {
-    // We mock a lightweight EditorView to pass into buildDecorations
-    const viewMock = {
-        state,
-        visibleRanges: [{ from: 0, to: state.doc.length }],
-    } as unknown as EditorView;
-
-    return buildDecorations(viewMock);
+    return buildDecorations(state);
 }
 
 describe("LivePreviewExtension", () => {
