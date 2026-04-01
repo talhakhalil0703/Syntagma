@@ -45,6 +45,7 @@ import BrowserPlugin from "./plugins/core/browser/BrowserPlugin";
 import ExcalidrawPlugin from "./plugins/core/excalidraw/ExcalidrawPlugin";
 import MermaidPlugin from "./plugins/core/mermaid/MermaidPlugin";
 import ImageEditPlugin from "./plugins/core/image-edit/ImageEditPlugin";
+import TablePlugin from "./plugins/core/table/TablePlugin";
 import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
 import { useVaultIndexStore } from "./store/vaultIndexStore";
 import "./styles/layout.css";
@@ -321,6 +322,14 @@ function App() {
       name: "Image Editor",
       version: "1.0.0",
       description: "Provides a ShareX-like image editor for annotating and editing images.",
+      author: "Syntagma Core"
+    });
+
+    registry.loadPlugin(TablePlugin, {
+      id: "core-table",
+      name: "Table",
+      version: "1.0.0",
+      description: "Provides interactive tables with sorting, filtering, and row/column manipulation.",
       author: "Syntagma Core"
     });
 

@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
+import { GFM } from "@lezer/markdown";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
 import { StateField } from "@codemirror/state";
@@ -127,6 +128,7 @@ export const Editor: React.FC<EditorProps> = ({
             markdown({
                 base: markdownLanguage,
                 codeLanguages: languages,
+                extensions: [GFM]
             }),
             autocompletion({ override: [wikilinkAutocomplete] }),
             wikilinkExtension()

@@ -1,0 +1,194 @@
+.interactive-table-wrapper {
+    margin: 16px 0;
+    overflow-x: auto;
+    border: 1px solid var(--bg-border);
+    border-radius: 8px;
+    background-color: var(--bg-secondary);
+}
+
+.interactive-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.table-header-cell {
+    padding: 8px;
+    background-color: var(--bg-tertiary);
+    border-bottom: 2px solid var(--bg-border);
+    border-right: 1px solid var(--bg-border);
+    text-align: left;
+}
+
+.header-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.header-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 1.1em;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.header-input:hover, .header-input:focus {
+    background-color: rgba(255, 255, 255, 0.05);
+    outline: none;
+}
+
+.sort-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.sort-btn:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-accent);
+}
+
+.filter-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background-color: var(--bg-secondary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--bg-border);
+}
+
+.filter-icon {
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+.filter-input {
+    background: transparent;
+    border: none;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    width: 100%;
+}
+
+.filter-input:focus {
+    outline: none;
+    color: var(--text-primary);
+}
+
+.table-cell {
+    padding: 8px;
+    border-bottom: 1px solid var(--bg-border);
+    border-right: 1px solid var(--bg-border);
+    vertical-align: top;
+    min-width: 100px;
+}
+
+.cell-container {
+    min-height: 24px;
+    cursor: pointer;
+}
+
+.cell-renderer {
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.cell-renderer:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.cell-editor {
+    width: 100%;
+    min-height: 60px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--text-accent);
+    border-radius: 4px;
+    padding: 8px;
+    font-family: inherit;
+    font-size: inherit;
+    resize: vertical;
+}
+
+/* Header Highlight */
+.header-row {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.data-row:hover {
+    background-color: rgba(255, 255, 255, 0.01);
+}
+
+/* Markdown Renderer integration in cells */
+.cell-renderer .markdown-rendered {
+    font-size: 1em;
+}
+
+.cell-renderer :last-child {
+    margin-bottom: 0;
+}
+
+.cell-renderer img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+.cell-renderer p {
+    margin: 4px 0;
+}
+
+/* Resize Handles */
+.table-header-cell, .table-cell {
+    position: relative;
+}
+
+.resize-handle {
+    position: absolute;
+    background-color: transparent;
+    z-index: 10;
+    transition: background-color 0.2s;
+}
+
+.resize-handle:hover, .resize-handle.active {
+    background-color: var(--text-accent);
+}
+
+.resize-handle.col {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+}
+
+.resize-handle.row {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    cursor: row-resize;
+}
+
+.table-header-cell .resize-handle.col {
+    height: 100%;
+}
+
+.table-cell .resize-handle.row {
+    width: 100%;
+}

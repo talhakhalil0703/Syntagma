@@ -22,10 +22,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, dep
 
     const processedContent = useMemo(() => {
         if (!content) return '';
-        // Pre-process Obsidian image transclusions: ![[image.png]] -> ![image.png](image.png)
-        // Pre-process Obsidian file transclusions: ![[file.md]] -> ![file.md](file.md)
+        // Pre-process Obsidian image transclusions: ![[image.png|100]] -> ![image.png|100](<image.png>)
+        // This handles spaces in filenames and correctly formats for ReactMarkdown
         return content.replace(/!\[\[(.*?)\]\]/g, (_, inner) => {
-            return `![${inner}](${inner})`;
+            const [path, ...params] = inner.split('|');
+            // If there's a pipe, the part after it is the "alt" or width in Obsidian
+            const alt = params.length > 0 ? params.join('|') : path;
+            return `![${alt}](<${path.trim()}>)`;
         });
     }, [content]);
 

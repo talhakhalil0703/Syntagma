@@ -13,6 +13,8 @@ import { EmbeddedMarkdown } from '../markdown/EmbeddedMarkdown';
 import { ResizableImage } from '../markdown/ResizableImage';
 import { MermaidWidget } from '../markdown/MermaidWidget';
 import { useMermaidStore } from '../../plugins/core/mermaid/mermaidStore';
+import { TableView } from '../../plugins/core/table/TableView';
+import { useTableStore } from '../../plugins/core/table/tableStore';
 
 // Hide decoration for syntax markers
 export const hideMarkDeco = Decoration.replace({});
@@ -222,6 +224,68 @@ class MermaidWidgetCM extends WidgetType {
     }
 }
 
+class TableWidgetCM extends WidgetType {
+    content: string;
+    from: number;
+    to: number;
+    root: Root | null = null;
+
+    constructor(content: string, from: number, to: number) {
+        super();
+        this.content = content;
+        this.from = from;
+        this.to = to;
+    }
+
+    eq(other: TableWidgetCM) {
+        // We MUST return true for the same range to avoid full widget destroy/re-create.
+        // This is essential for maintaining React state during live editing.
+        return this.from === other.from && this.to === other.to;
+    }
+
+    destroy() {
+        if (this.root) {
+            this.root.unmount();
+        }
+    }
+
+    render(dom: HTMLElement, view: EditorView) {
+        let root = (dom as any)._reactRoot as Root;
+        if (!root) {
+            root = createRoot(dom);
+            (dom as any)._reactRoot = root;
+        }
+        this.root = root;
+        
+        root.render(
+            React.createElement(TableView, {
+                content: this.content,
+                onChange: (newMarkdown) => {
+                    view.dispatch({
+                        changes: { from: this.from, to: this.to, insert: newMarkdown }
+                    });
+                }
+            })
+        );
+    }
+
+    toDOM(view: EditorView) {
+        const wrap = document.createElement("div");
+        wrap.className = "cm-table-widget-react";
+        this.render(wrap, view);
+        return wrap;
+    }
+
+    updateDOM(dom: HTMLElement, view: EditorView) {
+        this.render(dom, view);
+        return true;
+    }
+
+    ignoreEvent() {
+        return true;
+    }
+}
+
 export function buildDecorations(state: EditorState, selection = state.selection.main) {
     const decorations: { from: number; to: number; deco: Decoration; isLine: boolean }[] = [];
     const processedNodes = new Set<string>();
@@ -300,6 +364,23 @@ export function buildDecorations(state: EditorState, selection = state.selection
                     isLine: false
                 });
             }
+
+            if (name === "Table") {
+                const renderTable = useTableStore.getState().renderInViewMode;
+                if (renderTable) {
+                    decorations.push({
+                        from: node.from,
+                        to: node.to,
+                        deco: Decoration.replace({
+                            widget: new TableWidgetCM(state.sliceDoc(node.from, node.to), node.from, node.to),
+                            side: 1
+                        }),
+                        isLine: false
+                    });
+                    return;
+                }
+            }
+
             if (name === "ListItem") {
                 const startLine = state.doc.lineAt(node.from).number;
                 const endLine = state.doc.lineAt(node.to).number;
