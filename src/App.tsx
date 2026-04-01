@@ -48,6 +48,7 @@ import ImageEditPlugin from "./plugins/core/image-edit/ImageEditPlugin";
 import TablePlugin from "./plugins/core/table/TablePlugin";
 import { TemplateSelectorModal } from "./plugins/core/templates/TemplateSelectorModal";
 import { useVaultIndexStore } from "./store/vaultIndexStore";
+import { APP_VERSION } from "./version";
 import "./styles/layout.css";
 
 function App() {
@@ -588,6 +589,7 @@ function App() {
           <div className="status-bar-group">
             {/* Status counts moved to Editor locally, or keep a global active tab counter if needed */}
             <span>Ready</span>
+            <span style={{ marginLeft: '8px', opacity: 0.6, fontSize: '11px' }}>v{APP_VERSION}</span>
           </div>
           <div className="status-bar-group">
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

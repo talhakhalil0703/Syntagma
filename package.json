@@ -1,7 +1,7 @@
 {
   "name": "syntagma",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.39",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run start\" \"npm run electron\"",
