@@ -1,7 +1,7 @@
 {
   "name": "syntagma",
   "private": true,
-  "version": "0.0.39",
+  "version": "0.0.40",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run start\" \"npm run electron\"",
@@ -21,6 +21,8 @@
     "directories": {
       "output": "dist-electron"
     },
+    "asar": true,
+    "compression": "maximum",
     "mac": {
       "target": [
         "dmg"
@@ -43,7 +45,8 @@
       "package.json"
     ]
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.10.2",
     "@codemirror/lang-markdown": "^6.5.0",
@@ -75,9 +78,7 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "remark-wiki-link": "^2.0.1",
-    "zustand": "^5.0.11"
-  },
-  "devDependencies": {
+    "zustand": "^5.0.11",
     "@eslint/js": "^9.39.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
